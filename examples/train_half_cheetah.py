@@ -48,12 +48,12 @@ class Config(ExperimentConfig):
                 seed=42,
             ),
             wandb=WandbConfig(
-                project="ES-Humanoid",
+                project="ES-HalfCheetah",
             ),
             policy=SimpleMLPConfig(
-                obs_dim=348,
-                act_dim=17,
-                hidden_dim=256,
+                obs_dim=17,
+                act_dim=6,
+                hidden_dim=64,
             ),
             epochs=1000,
             max_episode_steps=1000,
@@ -103,7 +103,18 @@ def evaluate_policy_batch(
 
 
 def train(config: Config) -> torch.Tensor:
-    env = gym.make_vec("Humanoid-v5", num_envs=config.es.n_pop, vectorization_mode=VectorizeMode.ASYNC)
+    pprint(config)
+    if config.wandb.enabled:
+        if wandb.run is None:  # might be already initialized from sweep
+            wandb.init(
+                project=config.wandb.project,
+                name=config.wandb.name,
+                tags=config.wandb.tags,
+                entity=config.wandb.entity,
+                config=vars(config),
+            )
+
+    env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.n_pop, vectorization_mode=VectorizeMode.ASYNC)
     initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(config.policy).parameters())
     optim = ES(
         config.es,
@@ -143,7 +154,6 @@ def main() -> None:
     config.epochs = args["epochs"] or config.epochs
     config.max_episode_steps = args["max_episode_steps"] or config.max_episode_steps
     config.policy.hidden_dim = args["hid"] or config.policy.hidden_dim
-    pprint(config)
 
     if config.wandb.enabled:
         run = wandb.init(
@@ -158,7 +168,7 @@ def main() -> None:
     trained_params = train(config)
     model = SimpleMLP(config.policy)
     torch.nn.utils.vector_to_parameters(trained_params, model.parameters())
-    filename = "humanoid.pt" if not config.wandb.enabled else f"humanoid_{run.name}.pt"
+    filename = "es_half_cheetah.pt" if not config.wandb.enabled else f"es_half_cheetah_{run.name}.pt"
     CKPTS.mkdir(exist_ok=True)
     save_policy(model=model, config=config.policy, save_path=CKPTS / filename)
 
