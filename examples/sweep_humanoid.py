@@ -1,6 +1,7 @@
 import argparse
 import multiprocessing as mp
 from dataclasses import asdict
+from pprint import pprint
 
 import wandb
 
@@ -54,7 +55,7 @@ SWEEP_CFG = {
 
 def run_sweep() -> None:
     config = Config.default()
-    config.use_wandb = True
+    config.wandb.enabled = True
     config.epochs = MAX_EPOCHS
     config.es.n_pop = 40
     config.policy.hidden_dim = 256
@@ -69,6 +70,8 @@ def run_sweep() -> None:
     # config.es.reward_transform = run.config.reward_transform
     # config.es.seed = run.config.seed
     wandb.config.update(flatten_dict(asdict(config)), allow_val_change=True)
+
+    pprint(config)
 
     train(config)
 
