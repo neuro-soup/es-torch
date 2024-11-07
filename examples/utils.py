@@ -115,9 +115,9 @@ def reshape_params(params_flat: Float[Tensor, "npop params"], model: nn.Module) 
 
 
 def save_policy(
-    model: nn.Module,
-    model_config: Any,
-    fp: str | Path,
+        model: nn.Module,
+        model_config: Any,
+        fp: str | Path,
 ) -> None:
     """Save a policy network with its configuration object to a checkpoint."""
     state = {
