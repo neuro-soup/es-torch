@@ -5,19 +5,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import gymnasium as gym
-import imageio
 import torch
 from jaxtyping import Float
 from torch import Tensor, nn
 
 from es_torch.optim import Config as ESConfig
 
-ROOT = Path(__file__).parent
-VIDEOS = ROOT / "videos"
-CKPTS = ROOT / "checkpoints"
-DATA = ROOT / "data"
-LOGS = ROOT / "logs"
+
+class Paths:
+    ROOT = Path(__file__).parent
+    VIDEOS = ROOT / "videos"
+    CKPTS = ROOT / "checkpoints"
+    DATA = ROOT / "data"
+    LOGS = ROOT / "logs"
 
 
 @dataclass
@@ -112,47 +112,17 @@ def reshape_params(params_flat: Float[Tensor, "npop params"], model: nn.Module) 
     return param_dict
 
 
-@torch.inference_mode()
-def render_episode(
-    model: nn.Module,
-    env_id: str,
-    output_path: Path,
-    max_episode_steps: int = 1000,
-    render_fps: int = 30,
-    device: str = "cpu",
-    **env_kwargs: Any,
-) -> float:
-    env = gym.make(env_id, render_mode="rgb_array", **env_kwargs)
-    model = model.to(device).eval()
-    frames = []
-    obs, _ = env.reset()
-    total_reward = 0
-    for _ in range(max_episode_steps):
-        obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
-        action = model(obs_tensor).squeeze(0).cpu().numpy()
-        obs, reward, done, truncated, _ = env.step(action)
-        total_reward += reward
-        frames.append(env.render())
-        if done or truncated:
-            break
-    print(f"Episode finished with total reward: {total_reward}")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    imageio.mimsave(str(output_path), frames, fps=render_fps)
-    env.close()
-    return total_reward
-
-
 def save_policy(
     model: nn.Module,
-    config: Any,
-    save_path: str | Path,
+    model_config: Any,
+    fp: str | Path,
 ) -> None:
     """Save a policy network with its configuration object to a checkpoint."""
     state = {
         "state_dict": model.state_dict(),
-        "config": vars(config),
+        "config": vars(model_config),
     }
-    torch.save(state, save_path)
+    torch.save(state, fp)
 
 
 def load_policy(
@@ -169,8 +139,8 @@ def load_policy(
         config_class: The configuration class to use
         **kwargs: Additional arguments passed to the policy constructor
     """
-    checkpoint = torch.load(ckpt_path)
-    config = config_class(**checkpoint["config"])
+    ckpt = torch.load(ckpt_path)
+    config = config_class(**ckpt["config"])
     policy = policy_class(config, **kwargs)
-    policy.load_state_dict(checkpoint["state_dict"])
+    policy.load_state_dict(ckpt["state_dict"])
     return policy

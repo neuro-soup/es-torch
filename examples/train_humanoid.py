@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import multiprocessing as mp
 from dataclasses import dataclass
+from pathlib import Path
 from pprint import pprint
 
 import gymnasium as gym
@@ -16,9 +17,9 @@ from torch import Tensor
 from es_torch.optim import Config as ESConfig, ES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
-    CKPTS,
     ESArgumentHandler,
     ExperimentConfig,
+    Paths,
     WandbArgumentHandler,
     WandbConfig,
     reshape_params,
@@ -33,6 +34,8 @@ class Config(ExperimentConfig):
     max_episode_steps: int
     env_seed: int | None
     device: str
+    ckpt_every: int = -1
+    ckpt_path: str | Path | None = None
 
     @classmethod
     def default(cls) -> Config:
@@ -122,6 +125,12 @@ def train(config: Config) -> torch.Tensor:
         print(f"Epoch {epoch + 1}/{config.epochs}")
         if config.wandb.enabled:
             wandb.log({"epoch": epoch + 1})
+        if config.ckpt_every > 0 and epoch % config.ckpt_every == 0:
+            model = SimpleMLP(config.policy)
+            torch.nn.utils.vector_to_parameters(optim.params, model.parameters())
+            fp = config.ckpt_path.with_stem(f"{config.ckpt_path.stem}_epoch_{epoch}")
+            save_policy(model, model_config=config, fp=fp)
+            print(f"Saved checkpoint to {fp}")
 
     env.close()
     if config.wandb.enabled:
@@ -134,33 +143,43 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, help="Number of training epochs")
     parser.add_argument("--max_episode_steps", type=int, help="Max steps per episode")
     parser.add_argument("--hid", type=int, help="Hidden layer size")
+    parser.add_argument("--ckpt", type=int, help="Save every N epochs. N<=0 disables saving")
     ESArgumentHandler.add_args(parser)
     WandbArgumentHandler.add_args(parser)
     args = vars(parser.parse_args())
-    config = Config.default()
-    ESArgumentHandler.update_config(args, config)
-    WandbArgumentHandler.update_config(args, config)
-    config.epochs = args["epochs"] or config.epochs
-    config.max_episode_steps = args["max_episode_steps"] or config.max_episode_steps
-    config.policy.hidden_dim = args["hid"] or config.policy.hidden_dim
-    pprint(config)
+    cfg = Config.default()
+    ESArgumentHandler.update_config(args, cfg)
+    WandbArgumentHandler.update_config(args, cfg)
+    cfg.epochs = args["epochs"] or cfg.epochs
+    cfg.max_episode_steps = args["max_episode_steps"] or cfg.max_episode_steps
+    cfg.policy.hidden_dim = args["hid"] or cfg.policy.hidden_dim
 
-    if config.wandb.enabled:
+    if cfg.wandb.enabled:
         run = wandb.init(
-            project=config.wandb.project,
-            name=config.wandb.name,
-            tags=config.wandb.tags,
-            entity=config.wandb.entity,
-            config=vars(config),
+            project=cfg.wandb.project,
+            name=cfg.wandb.name,
+            tags=cfg.wandb.tags,
+            entity=cfg.wandb.entity,
+            config=vars(cfg),
         )
 
-    #  TODO write a checkpointing callback or sth
-    trained_params = train(config)
-    model = SimpleMLP(config.policy)
-    torch.nn.utils.vector_to_parameters(trained_params, model.parameters())
-    filename = "humanoid.pt" if not config.wandb.enabled else f"humanoid_{run.name}.pt"
-    CKPTS.mkdir(exist_ok=True)
-    save_policy(model=model, config=config.policy, save_path=CKPTS / filename)
+    filename = "humanoid.pt" if not cfg.wandb.enabled else f"humanoid_{run.name}.pt"
+    cfg.ckpt_path = Paths.CKPTS / filename
+    cfg.ckpt_every = args["ckpt"]
+
+    pprint(cfg)
+
+    final_params = train(cfg)
+
+    model = SimpleMLP(cfg.policy)
+    torch.nn.utils.vector_to_parameters(final_params, model.parameters())
+    fp = cfg.ckpt_path.with_stem(cfg.ckpt_path.stem + "_final")
+    save_policy(
+        model=model,
+        model_config=cfg.policy,
+        fp=fp,
+    )
+    print(f"Saved final checkpoint to {fp}")
 
 
 if __name__ == "__main__":
