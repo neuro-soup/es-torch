@@ -165,7 +165,7 @@ def main() -> None:
 
     filename = "cheetah.pt" if not cfg.wandb.enabled else f"cheetah_{run.name}.pt"
     cfg.ckpt_path = Paths.CKPTS / filename
-    cfg.ckpt_every = args["ckpt"]
+    cfg.ckpt_every = args["ckpt"] or cfg.ckpt_every
 
     pprint(cfg)
 

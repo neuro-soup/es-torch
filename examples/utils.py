@@ -113,9 +113,9 @@ def reshape_params(params_flat: Float[Tensor, "npop params"], model: nn.Module) 
 
 
 def save_policy(
-    model: nn.Module,
-    model_config: Any,
-    fp: str | Path,
+        model: nn.Module,
+        model_config: Any,
+        fp: str | Path,
 ) -> None:
     """Save a policy network with its configuration object to a checkpoint."""
     state = {
@@ -126,10 +126,10 @@ def save_policy(
 
 
 def load_policy(
-    ckpt_path: str | Path,
-    policy_class: type[nn.Module],
-    config_class: type[Any],
-    **kwargs,
+        ckpt_path: str | Path,
+        policy_class: type[nn.Module],
+        config_class: type[Any],
+        **kwargs,
 ) -> nn.Module:
     """Load a policy network from a checkpoint.
 
@@ -144,3 +144,12 @@ def load_policy(
     policy = policy_class(config, **kwargs)
     policy.load_state_dict(ckpt["state_dict"])
     return policy
+
+
+def flatten_dict(d: dict) -> dict:
+    """{1: {2: 3}, 4: 5} -> {2: 3, 4: 5}"""
+    flat = {k: v for k, v in d.items() if not isinstance(v, dict)}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            flat.update(flatten_dict(v))
+    return flat
