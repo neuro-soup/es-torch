@@ -9,7 +9,7 @@ import torch
 from jaxtyping import Float
 from torch import Tensor, nn
 
-from es_torch.optim import Config as ESConfig
+from es_torch.optim import Config as ESConfig, REWARD_TRANSFORMS, SAMPLING_STRATEGIES
 
 
 class Paths:
@@ -47,15 +47,18 @@ class ESArgumentHandler:
     reward_strat: str = "reward"
     random_seed: str = "seed"
 
-    # TODO add options in the help
     @classmethod
     def add_args(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(f"--{cls.population_size}", type=int, help="Population size")
         parser.add_argument(f"--{cls.std_dev}", type=float, help="Standard deviation of noise")
         parser.add_argument(f"--{cls.learning_rate}", type=float, help="Learning rate")
         parser.add_argument(f"--{cls.weight_decay}", type=float, help="Weight decay")
-        parser.add_argument(f"--{cls.noise_strat}", type=str, help="Noise sampling strategy")
-        parser.add_argument(f"--{cls.reward_strat}", type=str, help="Reward normalization strategy")
+        parser.add_argument(
+            f"--{cls.noise_strat}", type=str, help="Noise sampling strategy", choices=SAMPLING_STRATEGIES.keys()
+        )
+        parser.add_argument(
+            f"--{cls.reward_strat}", type=str, help="Reward normalization strategy", choices=REWARD_TRANSFORMS.keys()
+        )
         parser.add_argument(f"--{cls.random_seed}", type=int, help="Seed for noise sampling")
 
     @classmethod

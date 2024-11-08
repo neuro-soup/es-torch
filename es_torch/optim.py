@@ -7,7 +7,7 @@ from torch import Tensor
 
 type Sampler = Callable[[], Float[Tensor, "npop"]]
 type SamplingStrategy = Literal["antithetic", "normal"]
-_sampling_strategies: dict[SamplingStrategy, Callable[[int, int], Sampler]] = {
+SAMPLING_STRATEGIES: dict[SamplingStrategy, Callable[[int, int], Sampler]] = {
     "antithetic": lambda n_pop, n_params: lambda: _get_antithetic_noise(n_pop, n_params),
     "normal": lambda n_pop, n_params: lambda: torch.randn((n_pop, n_params)),
 }
@@ -16,7 +16,7 @@ type EvalFxn = Callable[[Float[Tensor, "npop params"]], Float[Tensor, "npop"]]
 
 type RewardTransform = Callable[[Float[Tensor, "npop"]], Float[Tensor, "npop"]]
 type RewardTransformStrategy = Literal["centered_rank", "normalized"]
-_reward_transforms: dict[RewardTransformStrategy, RewardTransform] = {
+REWARD_TRANSFORMS: dict[RewardTransformStrategy, RewardTransform] = {
     "centered_rank": lambda r: r.argsort().argsort() / len(r) - 0.5,
     "normalized": lambda r: (r - r.mean()) / r.std(),
 }
@@ -47,8 +47,8 @@ class ES:
         self._cfg = config
         self.params = params
         self._eval_policies = eval_fxn
-        self._get_noise = _sampling_strategies[config.sampling_strategy](config.n_pop, len(params))
-        self._transform_reward = _reward_transforms[config.reward_transform]
+        self._get_noise = SAMPLING_STRATEGIES[config.sampling_strategy](config.n_pop, len(params))
+        self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
 
     @torch.inference_mode()
     def step(self) -> None:
