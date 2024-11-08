@@ -129,7 +129,7 @@ def train(config: Config) -> torch.Tensor:
             model = SimpleMLP(config.policy)
             torch.nn.utils.vector_to_parameters(optim.params, model.parameters())
             fp = config.ckpt_path.with_stem(f"{config.ckpt_path.stem}_epoch_{epoch}")
-            save_policy(model, model_config=config, fp=fp)
+            save_policy(model, model_config=config.policy, fp=fp)
             print(f"Saved checkpoint to {fp}")
 
     env.close()

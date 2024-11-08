@@ -120,7 +120,7 @@ def save_policy(
     """Save a policy network with its configuration object to a checkpoint."""
     state = {
         "state_dict": model.state_dict(),
-        "config": vars(model_config),
+        "config": model_config,
     }
     torch.save(state, fp)
 
@@ -128,7 +128,6 @@ def save_policy(
 def load_policy(
         ckpt_path: str | Path,
         policy_class: type[nn.Module],
-        config_class: type[Any],
         **kwargs,
 ) -> nn.Module:
     """Load a policy network from a checkpoint.
@@ -136,12 +135,10 @@ def load_policy(
     Args:
         ckpt_path: Path to the checkpoint file
         policy_class: The class of policy to instantiate
-        config_class: The configuration class to use
         **kwargs: Additional arguments passed to the policy constructor
     """
     ckpt = torch.load(ckpt_path)
-    config = config_class(**ckpt["config"])
-    policy = policy_class(config, **kwargs)
+    policy = policy_class(ckpt["config"], **kwargs)
     policy.load_state_dict(ckpt["state_dict"])
     return policy
 

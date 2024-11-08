@@ -53,7 +53,7 @@ def render(args: argparse.Namespace) -> None:
     ckpt_path = Paths.CKPTS / args.name
     assert ckpt_path.exists(), f"Could not find checkpoint at {ckpt_path}"
 
-    policy = load_policy(ckpt_path=ckpt_path, policy_class=SimpleMLP, config_class=SimpleMLPConfig)
+    policy = load_policy(ckpt_path=ckpt_path, policy_class=SimpleMLP)
 
     render_episode(
         model=policy,
