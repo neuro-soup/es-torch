@@ -113,22 +113,23 @@ def reshape_params(params_flat: Float[Tensor, "npop params"], model: nn.Module) 
 
 
 def save_policy(
-        model: nn.Module,
-        model_config: Any,
-        fp: str | Path,
+    model: nn.Module,
+    model_config: Any,
+    fp: str | Path,
 ) -> None:
     """Save a policy network with its configuration object to a checkpoint."""
     state = {
         "state_dict": model.state_dict(),
         "config": model_config,
     }
+    fp.parent.mkdir(parents=True, exist_ok=True)
     torch.save(state, fp)
 
 
 def load_policy(
-        ckpt_path: str | Path,
-        policy_class: type[nn.Module],
-        **kwargs,
+    ckpt_path: str | Path,
+    policy_class: type[nn.Module],
+    **kwargs,
 ) -> nn.Module:
     """Load a policy network from a checkpoint.
 
