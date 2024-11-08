@@ -90,10 +90,10 @@ class WandbArgumentHandler:
     @classmethod
     def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
         config.wandb.enabled = args[cls.enable]
-        config.wandb.project = args[cls.project]
-        config.wandb.name = args[cls.name]
-        config.wandb.tags = args[cls.tags]
-        config.wandb.entity = args[cls.entity]
+        config.wandb.project = args[cls.project] or config.wandb.project
+        config.wandb.name = args[cls.name] or config.wandb.name
+        config.wandb.tags = args[cls.tags] or config.wandb.tags
+        config.wandb.entity = args[cls.entity] or config.wandb.entity
 
 
 def reshape_params(params_flat: Float[Tensor, "npop params"], model: nn.Module) -> dict[str, Float[Tensor, "npop *_"]]:
