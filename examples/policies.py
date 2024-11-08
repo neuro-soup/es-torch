@@ -15,10 +15,8 @@ class SimpleMLP(nn.Module):
         super().__init__()
         self.network = nn.Sequential(
             nn.Linear(config.obs_dim, config.hidden_dim),
-            # nn.LayerNorm(config.hidden_dim),
             nn.Tanh(),
             nn.Linear(config.hidden_dim, config.hidden_dim),
-            # nn.LayerNorm(config.hidden_dim),
             nn.Tanh(),
             nn.Linear(config.hidden_dim, config.act_dim),
         )
