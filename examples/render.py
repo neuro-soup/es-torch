@@ -57,7 +57,7 @@ def render_episode(
 
 def render(args: argparse.Namespace) -> None:
     if args.name == "all":
-        prefix = {"Humanoid-v5": "humanoid", "HalfCheetah-v5": "halfcheetah"}
+        prefix = {"Humanoid-v5": "humanoid", "HalfCheetah-v5": "cheetah"}
         for ckpt in Paths.CKPTS.iterdir():
             if prefix[args.env] in ckpt.stem.lower():
                 print(f"Rendering {ckpt.stem}")
