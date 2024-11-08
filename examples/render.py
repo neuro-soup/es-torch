@@ -7,7 +7,7 @@ import imageio
 import torch
 from torch import nn
 
-from examples.policies import SimpleMLP, SimpleMLPConfig
+from examples.policies import SimpleMLP
 from examples.utils import Paths, load_policy
 
 
@@ -21,13 +21,13 @@ def parse_render_args() -> argparse.Namespace:
 
 @torch.inference_mode()
 def render_episode(
-        model: nn.Module,
-        env_id: str,
-        output_path: Path,
-        max_episode_steps: int = 1000,
-        render_fps: int = 30,
-        device: str = "cpu",
-        **env_kwargs: Any,
+    model: nn.Module,
+    env_id: str,
+    output_path: Path,
+    max_episode_steps: int = 1000,
+    render_fps: int = 30,
+    device: str = "cpu",
+    **env_kwargs: Any,
 ) -> float:
     env = gym.make(env_id, render_mode="rgb_array", **env_kwargs)
     model = model.to(device).eval()

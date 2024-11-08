@@ -67,9 +67,9 @@ class Config(ExperimentConfig):
 
 @torch.inference_mode()
 def evaluate_policy_batch(
-        env: gym.vector.VectorEnv,
-        policy_params_batch: Float[Tensor, "npop params"],
-        config: Config,
+    env: gym.vector.VectorEnv,
+    policy_params_batch: Float[Tensor, "npop params"],
+    config: Config,
 ) -> Float[Tensor, "npop"]:
     npop = env.num_envs
     obs, _ = env.reset(seed=config.env_seed)
