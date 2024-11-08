@@ -13,7 +13,11 @@ from examples.utils import Paths, load_policy
 
 def parse_render_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("name", type=str, help="Name of the model checkpoint")
+    parser.add_argument(
+        "name",
+        type=str,
+        help="Name of the model checkpoint. If name is 'all', renders an episode for all ckpts based on ckpt names",
+    )
     parser.add_argument("env", type=str, help="Environment ID")
     parser.add_argument("--steps", type=int, help="Maximum number of steps to render", default=500)
     return parser.parse_args()
@@ -42,14 +46,31 @@ def render_episode(
         frames.append(env.render())
         if done or truncated:
             break
+    env.close()
     print(f"Episode finished with total reward: {total_reward}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = output_path.with_stem(f"{output_path.stem}_reward_{total_reward:.0f}")
     imageio.mimsave(str(output_path), frames, fps=render_fps)
-    env.close()
+    print(f"Saved to {output_path}")
     return total_reward
 
 
 def render(args: argparse.Namespace) -> None:
+    if args.name == "all":
+        prefix = {"Humanoid-v5": "humanoid", "HalfCheetah-v5": "halfcheetah"}
+        for ckpt in Paths.CKPTS.iterdir():
+            if prefix[args.env] in ckpt.stem.lower():
+                print(f"Rendering {ckpt.stem}")
+                policy = load_policy(ckpt_path=ckpt, policy_class=SimpleMLP)
+                render_episode(
+                    model=policy,
+                    env_id=args.env,
+                    max_episode_steps=args.steps,
+                    output_path=Paths.VIDEOS / f"{ckpt.stem}.mp4",
+                )
+            else:
+                print(f"Skipping {ckpt.stem}")
+        return
     ckpt_path = Paths.CKPTS / args.name
     assert ckpt_path.exists(), f"Could not find checkpoint at {ckpt_path}"
 
