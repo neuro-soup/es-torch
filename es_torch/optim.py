@@ -7,9 +7,9 @@ from torch import Tensor
 
 type Sampler = Callable[[], Float[Tensor, "npop"]]
 type SamplingStrategy = Literal["antithetic", "normal"]
-SAMPLING_STRATEGIES: dict[SamplingStrategy, Callable[[int, int], Sampler]] = {
-    "antithetic": lambda n_pop, n_params: lambda: _get_antithetic_noise(n_pop, n_params),
-    "normal": lambda n_pop, n_params: lambda: torch.randn((n_pop, n_params)),
+SAMPLING_STRATEGIES: dict[SamplingStrategy, Callable[[int, int, torch.Generator], Sampler]] = {
+    "antithetic": lambda n_pop, n_params, gen: lambda: _get_antithetic_noise(n_pop, n_params, generator=gen),
+    "normal": lambda n_pop, n_params, gen: lambda: torch.randn((n_pop, n_params), generator=gen),
 }
 
 type EvalFxn = Callable[[Float[Tensor, "npop params"]], Float[Tensor, "npop"]]
@@ -47,7 +47,9 @@ class ES:
         self._cfg = config
         self.params = params
         self._eval_policies = eval_fxn
-        self._get_noise = SAMPLING_STRATEGIES[config.sampling_strategy](config.n_pop, len(params))
+        self._get_noise = SAMPLING_STRATEGIES[config.sampling_strategy](
+            config.n_pop, len(params), torch.Generator().manual_seed(config.seed)
+        )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
 
     @torch.inference_mode()
@@ -60,6 +62,6 @@ class ES:
         self.params += gradient - self._cfg.lr * self._cfg.weight_decay * self.params
 
 
-def _get_antithetic_noise(n_pop: int, n_params: int) -> torch.Tensor:
-    noise = torch.randn((n_pop // 2, n_params))
+def _get_antithetic_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
+    noise = torch.randn((n_pop // 2, n_params), generator=generator)
     return torch.cat([noise, -noise], dim=0)
