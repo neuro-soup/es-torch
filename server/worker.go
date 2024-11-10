@@ -29,16 +29,19 @@ func newWorker(numCPUs uint8) *worker {
 type workerPool struct {
 	nextID  uint8
 	workers map[uint8]*worker
-	mx      *sync.RWMutex
+	mu      *sync.RWMutex
 }
 
 func newWorkerPool() *workerPool {
-	return &workerPool{mx: new(sync.RWMutex)}
+	return &workerPool{
+		workers: make(map[uint8]*worker),
+		mu:      new(sync.RWMutex),
+	}
 }
 
 func (wp *workerPool) add(w *worker) uint8 {
-	wp.mx.Lock()
-	defer wp.mx.Unlock()
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
 
 	id := wp.nextID
 	wp.workers[id] = w
@@ -48,15 +51,15 @@ func (wp *workerPool) add(w *worker) uint8 {
 }
 
 func (wp *workerPool) remove(id uint8) {
-	wp.mx.Lock()
-	defer wp.mx.Unlock()
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
 
 	delete(wp.workers, id)
 }
 
 func (wp *workerPool) get(id uint8) *worker {
-	wp.mx.RLock()
-	defer wp.mx.RUnlock()
+	wp.mu.RLock()
+	defer wp.mu.RUnlock()
 
 	w, ok := wp.workers[id]
 	if !ok {
@@ -66,8 +69,8 @@ func (wp *workerPool) get(id uint8) *worker {
 }
 
 func (wp *workerPool) done() bool {
-	wp.mx.RLock()
-	defer wp.mx.RUnlock()
+	wp.mu.RLock()
+	defer wp.mu.RUnlock()
 
 	for _, w := range wp.workers {
 		if w.rewards == nil {
@@ -78,8 +81,8 @@ func (wp *workerPool) done() bool {
 }
 
 func (wp *workerPool) broadcast(evt *es.SubscribeResponse) {
-	wp.mx.Lock()
-	defer wp.mx.Unlock()
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
 
 	for _, w := range wp.workers {
 		w.events <- evt
@@ -87,8 +90,8 @@ func (wp *workerPool) broadcast(evt *es.SubscribeResponse) {
 }
 
 func (wp *workerPool) rewards() [][]byte {
-	wp.mx.RLock()
-	defer wp.mx.RUnlock()
+	wp.mu.RLock()
+	defer wp.mu.RUnlock()
 
 	rewards := make([][]byte, len(wp.workers))
 	for i, w := range wp.workers {
@@ -98,8 +101,8 @@ func (wp *workerPool) rewards() [][]byte {
 }
 
 func (wp *workerPool) random() *worker {
-	wp.mx.RLock()
-	defer wp.mx.RUnlock()
+	wp.mu.RLock()
+	defer wp.mu.RUnlock()
 
 	var w *worker
 	for _, w = range wp.workers {
