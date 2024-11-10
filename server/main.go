@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/neuro-soup/es-torch/server/pkg/proto/es/esconnect"
@@ -13,6 +14,11 @@ import (
 const port = 8080
 
 func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	slog.SetDefault(log)
+
 	mux := http.NewServeMux()
 	mux.Handle(esconnect.NewESServiceHandler(newServer()))
 
