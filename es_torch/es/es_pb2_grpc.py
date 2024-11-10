@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from es import es_pb2 as es_dot_es__pb2
+from es_torch.es import es_pb2 as es_dot_es__pb2
 
 GRPC_GENERATED_VERSION = '1.67.1'
 GRPC_VERSION = grpc.__version__
