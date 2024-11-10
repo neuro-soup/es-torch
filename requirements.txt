@@ -4,4 +4,3 @@ gymnasium[mujoco]
 wandb
 imageio[ffmpeg]
 pre-commit
-ray[serve]
