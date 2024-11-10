@@ -26,7 +26,7 @@ message DoneRequest {
   bytes reward = 2;
 }
 
-message DoneResponse { }
+message DoneResponse {}
 
 enum ServerEventType {
   UNKNOWN = 0;
@@ -41,7 +41,7 @@ message SubscribeRequest {
 
 message SubscribeResponse {
   ServerEventType type = 1;
-  optional oneof event {
+  oneof event {
     bytes updated_state = 2;
   }
 }
@@ -59,4 +59,3 @@ service ESService {
   // subscribe to server events
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {}
 }
-
