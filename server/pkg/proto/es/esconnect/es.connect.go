@@ -39,6 +39,8 @@ const (
 	ESServiceDoneProcedure = "/es.ESService/Done"
 	// ESServiceHeartbeatProcedure is the fully-qualified name of the ESService's Heartbeat RPC.
 	ESServiceHeartbeatProcedure = "/es.ESService/Heartbeat"
+	// ESServiceSendStateProcedure is the fully-qualified name of the ESService's SendState RPC.
+	ESServiceSendStateProcedure = "/es.ESService/SendState"
 	// ESServiceSubscribeProcedure is the fully-qualified name of the ESService's Subscribe RPC.
 	ESServiceSubscribeProcedure = "/es.ESService/Subscribe"
 )
@@ -51,6 +53,8 @@ type ESServiceClient interface {
 	Done(context.Context, *connect_go.Request[es.DoneRequest]) (*connect_go.Response[es.DoneResponse], error)
 	// worker heartbeat
 	Heartbeat(context.Context, *connect_go.Request[es.HeartbeatRequest]) (*connect_go.Response[es.HeartbeatResponse], error)
+	// send state if server demands it
+	SendState(context.Context, *connect_go.Request[es.SendStateRequest]) (*connect_go.Response[es.SendStateResponse], error)
 	// subscribe to server events
 	Subscribe(context.Context, *connect_go.Request[es.SubscribeRequest]) (*connect_go.ServerStreamForClient[es.SubscribeResponse], error)
 }
@@ -80,6 +84,11 @@ func NewESServiceClient(httpClient connect_go.HTTPClient, baseURL string, opts .
 			baseURL+ESServiceHeartbeatProcedure,
 			opts...,
 		),
+		sendState: connect_go.NewClient[es.SendStateRequest, es.SendStateResponse](
+			httpClient,
+			baseURL+ESServiceSendStateProcedure,
+			opts...,
+		),
 		subscribe: connect_go.NewClient[es.SubscribeRequest, es.SubscribeResponse](
 			httpClient,
 			baseURL+ESServiceSubscribeProcedure,
@@ -93,6 +102,7 @@ type eSServiceClient struct {
 	hello     *connect_go.Client[es.HelloRequest, es.HelloResponse]
 	done      *connect_go.Client[es.DoneRequest, es.DoneResponse]
 	heartbeat *connect_go.Client[es.HeartbeatRequest, es.HeartbeatResponse]
+	sendState *connect_go.Client[es.SendStateRequest, es.SendStateResponse]
 	subscribe *connect_go.Client[es.SubscribeRequest, es.SubscribeResponse]
 }
 
@@ -111,6 +121,11 @@ func (c *eSServiceClient) Heartbeat(ctx context.Context, req *connect_go.Request
 	return c.heartbeat.CallUnary(ctx, req)
 }
 
+// SendState calls es.ESService.SendState.
+func (c *eSServiceClient) SendState(ctx context.Context, req *connect_go.Request[es.SendStateRequest]) (*connect_go.Response[es.SendStateResponse], error) {
+	return c.sendState.CallUnary(ctx, req)
+}
+
 // Subscribe calls es.ESService.Subscribe.
 func (c *eSServiceClient) Subscribe(ctx context.Context, req *connect_go.Request[es.SubscribeRequest]) (*connect_go.ServerStreamForClient[es.SubscribeResponse], error) {
 	return c.subscribe.CallServerStream(ctx, req)
@@ -124,6 +139,8 @@ type ESServiceHandler interface {
 	Done(context.Context, *connect_go.Request[es.DoneRequest]) (*connect_go.Response[es.DoneResponse], error)
 	// worker heartbeat
 	Heartbeat(context.Context, *connect_go.Request[es.HeartbeatRequest]) (*connect_go.Response[es.HeartbeatResponse], error)
+	// send state if server demands it
+	SendState(context.Context, *connect_go.Request[es.SendStateRequest]) (*connect_go.Response[es.SendStateResponse], error)
 	// subscribe to server events
 	Subscribe(context.Context, *connect_go.Request[es.SubscribeRequest], *connect_go.ServerStream[es.SubscribeResponse]) error
 }
@@ -150,6 +167,11 @@ func NewESServiceHandler(svc ESServiceHandler, opts ...connect_go.HandlerOption)
 		svc.Heartbeat,
 		opts...,
 	))
+	mux.Handle(ESServiceSendStateProcedure, connect_go.NewUnaryHandler(
+		ESServiceSendStateProcedure,
+		svc.SendState,
+		opts...,
+	))
 	mux.Handle(ESServiceSubscribeProcedure, connect_go.NewServerStreamHandler(
 		ESServiceSubscribeProcedure,
 		svc.Subscribe,
@@ -171,6 +193,10 @@ func (UnimplementedESServiceHandler) Done(context.Context, *connect_go.Request[e
 
 func (UnimplementedESServiceHandler) Heartbeat(context.Context, *connect_go.Request[es.HeartbeatRequest]) (*connect_go.Response[es.HeartbeatResponse], error) {
 	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("es.ESService.Heartbeat is not implemented"))
+}
+
+func (UnimplementedESServiceHandler) SendState(context.Context, *connect_go.Request[es.SendStateRequest]) (*connect_go.Response[es.SendStateResponse], error) {
+	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("es.ESService.SendState is not implemented"))
 }
 
 func (UnimplementedESServiceHandler) Subscribe(context.Context, *connect_go.Request[es.SubscribeRequest], *connect_go.ServerStream[es.SubscribeResponse]) error {
