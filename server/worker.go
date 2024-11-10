@@ -110,3 +110,12 @@ func (wp *workerPool) random() *worker {
 	}
 	return w
 }
+
+func (wp *workerPool) resetRewards() {
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+
+	for _, w := range wp.workers {
+		w.rewards = nil
+	}
+}

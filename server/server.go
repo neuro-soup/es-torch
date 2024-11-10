@@ -74,6 +74,7 @@ func (s *server) Done(
 
 	if s.workers.done() {
 		slog.Debug("all worker rewards received, triggering next epoch...")
+		s.workers.resetRewards()
 		s.workers.broadcast(&es.SubscribeResponse{
 			Type:    es.ServerEventType_NEXT_EPOCH,
 			Rewards: s.workers.rewards(),
