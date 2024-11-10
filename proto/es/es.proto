@@ -14,7 +14,8 @@ message HelloResponse {
 }
 
 message HeartbeatRequest {
-  google.protobuf.Timestamp timestamp = 1;
+  int32 id = 1;
+  google.protobuf.Timestamp timestamp = 2;
 }
 
 message HeartbeatResponse {
@@ -41,9 +42,12 @@ message SubscribeRequest {
 
 message SubscribeResponse {
   ServerEventType type = 1;
-  oneof event {
-    bytes updated_state = 2;
-  }
+
+  // only for NEXT_EPOCH
+  repeated bytes rewards = 2;
+
+  // only for STATE_UPDATE
+  optional bytes updated_state = 3;
 }
 
 service ESService {
