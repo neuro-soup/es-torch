@@ -1,22 +1,46 @@
 from dataclasses import dataclass
-from typing import Callable, Literal
+from functools import partial
+from typing import Callable, Literal, Protocol
 
 import torch
 from jaxtyping import Float
 from torch import Tensor
 
-type Sampler = Callable[[], Float[Tensor, "npop"]]
-type SamplingStrategy = Literal["antithetic", "normal"]
-SAMPLING_STRATEGIES: dict[SamplingStrategy, Callable[[int, int, torch.Generator], Sampler]] = {
-    "antithetic": lambda n_pop, n_params, gen: lambda: _get_antithetic_noise(n_pop, n_params, generator=gen),
-    "normal": lambda n_pop, n_params, gen: lambda: torch.randn((n_pop, n_params), generator=gen),
-}
+
+class Sampler(Protocol):
+    def __call__(self, n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor: ...
+
+
+def get_antithetic_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
+    noise = torch.randn((n_pop // 2, n_params), generator=generator)
+    return torch.cat([noise, -noise], dim=0)
+
+
+def get_normal_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
+    return torch.randn((n_pop, n_params), generator=generator)
+
 
 type RewardTransform = Callable[[Float[Tensor, "npop"]], Float[Tensor, "npop"]]
+
+
+def get_centered_rank(rewards: Float[Tensor, "npop"]) -> Float[Tensor, "npop"]:
+    return rewards.argsort().argsort().float() / len(rewards) - 0.5
+
+
+def get_normalized(rewards: Float[Tensor, "npop"]) -> Float[Tensor, "npop"]:
+    return (rewards - rewards.mean()) / rewards.std()
+
+
+type SamplingStrategy = Literal["antithetic", "normal"]
+SAMPLING_STRATEGIES: dict[SamplingStrategy, Sampler] = {
+    "antithetic": get_antithetic_noise,
+    "normal": get_normal_noise,
+}
+
 type RewardTransformStrategy = Literal["centered_rank", "normalized"]
 REWARD_TRANSFORMS: dict[RewardTransformStrategy, RewardTransform] = {
-    "centered_rank": lambda r: r.argsort().argsort() / len(r) - 0.5,
-    "normalized": lambda r: (r - r.mean()) / r.std(),
+    "centered_rank": get_centered_rank,
+    "normalized": get_normalized,
 }
 
 
@@ -36,15 +60,14 @@ class Config:
 
 
 class ES:
-    def __init__(
-            self,
-            config: Config,
-            params: Float[Tensor, "params"],
-    ) -> None:
+    def __init__(self, config: Config, params: Float[Tensor, "params"]) -> None:
         self._cfg = config
         self.params = params.unsqueeze(0)
-        self._get_noise = SAMPLING_STRATEGIES[config.sampling_strategy](
-            config.n_pop, len(params), torch.Generator().manual_seed(config.seed)
+        self._get_noise = partial(
+            SAMPLING_STRATEGIES[config.sampling_strategy],
+            config.n_pop,
+            len(params),
+            torch.Generator().manual_seed(config.seed),
         )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
 
@@ -61,8 +84,3 @@ class ES:
 
     def get_params(self) -> Float[Tensor, "params"]:
         return self.params.squeeze()
-
-
-def _get_antithetic_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
-    noise = torch.randn((n_pop // 2, n_params), generator=generator)
-    return torch.cat([noise, -noise], dim=0)
