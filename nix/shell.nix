@@ -11,6 +11,8 @@ pkgs.mkShell {
     golangci-lint
     just
     grpcurl
+    buf
+    buf-language-server
   ];
 
   shellHook = ''
