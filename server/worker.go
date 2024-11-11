@@ -83,6 +83,11 @@ func (wp *workerPool) remove(id uint8) {
 	wp.Lock()
 	defer wp.Unlock()
 
+	w, ok := wp.workers[id]
+	if !ok {
+		return
+	}
+	w.disconnect <- struct{}{}
 	delete(wp.workers, id)
 }
 
