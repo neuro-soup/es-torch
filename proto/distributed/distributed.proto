@@ -21,7 +21,7 @@ message HeartbeatResponse {
 message DoneRequest {
   int32 id = 1;
   Slice slice = 2;
-  repeated bytes rewards = 3;
+  repeated bytes batch_rewards = 3;
 }
 
 message DoneResponse {}

@@ -45,14 +45,14 @@ class HeartbeatResponse(_message.Message):
     def __init__(self, ok: bool = ...) -> None: ...
 
 class DoneRequest(_message.Message):
-    __slots__ = ("id", "slice", "rewards")
+    __slots__ = ("id", "slice", "batch_rewards")
     ID_FIELD_NUMBER: _ClassVar[int]
     SLICE_FIELD_NUMBER: _ClassVar[int]
-    REWARDS_FIELD_NUMBER: _ClassVar[int]
+    BATCH_REWARDS_FIELD_NUMBER: _ClassVar[int]
     id: int
     slice: Slice
-    rewards: _containers.RepeatedScalarFieldContainer[bytes]
-    def __init__(self, id: _Optional[int] = ..., slice: _Optional[_Union[Slice, _Mapping]] = ..., rewards: _Optional[_Iterable[bytes]] = ...) -> None: ...
+    batch_rewards: _containers.RepeatedScalarFieldContainer[bytes]
+    def __init__(self, id: _Optional[int] = ..., slice: _Optional[_Union[Slice, _Mapping]] = ..., batch_rewards: _Optional[_Iterable[bytes]] = ...) -> None: ...
 
 class DoneResponse(_message.Message):
     __slots__ = ()
