@@ -25,37 +25,47 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64istributed/distributed.proto\x12\x0b\x64istributed\x1a\x1fgoogle/protobuf/timestamp.proto\"#\n\x05Slice\x12\r\n\x05start\x18\x01 \x01(\x05\x12\x0b\n\x03\x65nd\x18\x02 \x01(\x05\" \n\x0cHelloRequest\x12\x10\n\x08num_cpus\x18\x01 \x01(\x05\"\x1b\n\rHelloResponse\x12\n\n\x02id\x18\x01 \x01(\x05\"M\n\x10HeartbeatRequest\x12\n\n\x02id\x18\x01 \x01(\x05\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x1f\n\x11HeartbeatResponse\x12\n\n\x02ok\x18\x01 \x01(\x08\"/\n\x0b\x44oneRequest\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x14\n\x0creward_batch\x18\x02 \x01(\x0c\"\x0e\n\x0c\x44oneResponse\"-\n\x10SendStateRequest\x12\n\n\x02id\x18\x01 \x01(\x05\x12\r\n\x05state\x18\x02 \x01(\x0c\"\x13\n\x11SendStateResponse\"\x1e\n\x10SubscribeRequest\x12\n\n\x02id\x18\x01 \x01(\x05\"\xaf\x01\n\x11SubscribeResponse\x12*\n\x04type\x18\x01 \x01(\x0e\x32\x1c.distributed.ServerEventType\x12\x15\n\roptim_rewards\x18\x02 \x03(\x0c\x12+\n\x0f\x65val_pop_slices\x18\x03 \x03(\x0b\x32\x12.distributed.Slice\x12\x19\n\x0cupdate_state\x18\x04 \x01(\x0cH\x00\x88\x01\x01\x42\x0f\n\r_update_state*d\n\x0fServerEventType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0e\n\nSEND_STATE\x10\x01\x12\x12\n\x0e\x45VALUATE_BATCH\x10\x02\x12\x10\n\x0cSTATE_UPDATE\x10\x03\x12\x0e\n\nOPTIM_STEP\x10\x04\x32\xf8\x02\n\tESService\x12@\n\x05Hello\x12\x19.distributed.HelloRequest\x1a\x1a.distributed.HelloResponse\"\x00\x12=\n\x04\x44one\x12\x18.distributed.DoneRequest\x1a\x19.distributed.DoneResponse\"\x00\x12L\n\tHeartbeat\x12\x1d.distributed.HeartbeatRequest\x1a\x1e.distributed.HeartbeatResponse\"\x00\x12L\n\tSendState\x12\x1d.distributed.SendStateRequest\x1a\x1e.distributed.SendStateResponse\"\x00\x12N\n\tSubscribe\x12\x1d.distributed.SubscribeRequest\x1a\x1e.distributed.SubscribeResponse\"\x00\x30\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x64istributed/distributed.proto\x12\x0b\x64istributed\x1a\x1fgoogle/protobuf/timestamp.proto\"#\n\x05Slice\x12\r\n\x05start\x18\x01 \x01(\x05\x12\x0b\n\x03\x65nd\x18\x02 \x01(\x05\"M\n\x10HeartbeatRequest\x12\n\n\x02id\x18\x01 \x01(\x05\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x1f\n\x11HeartbeatResponse\x12\n\n\x02ok\x18\x01 \x01(\x08\"/\n\x0b\x44oneRequest\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x14\n\x0creward_batch\x18\x02 \x01(\x0c\"\x0e\n\x0c\x44oneResponse\"-\n\x10SendStateRequest\x12\n\n\x02id\x18\x01 \x01(\x05\x12\r\n\x05state\x18\x02 \x01(\x0c\"\x13\n\x11SendStateResponse\"4\n\x13SendWandbRunRequest\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x11\n\twandb_run\x18\x02 \x01(\x0c\"\x16\n\x14SendWandbRunResponse\"$\n\x10SubscribeRequest\x12\x10\n\x08num_cpus\x18\x01 \x01(\x05\"\x10\n\x0eSendStateEvent\";\n\x12\x45valuateBatchEvent\x12%\n\tpop_slice\x18\x01 \x01(\x0b\x32\x12.distributed.Slice\"2\n\x0eOptimStepEvent\x12\x0f\n\x07logging\x18\x01 \x01(\x08\x12\x0f\n\x07rewards\x18\x02 \x03(\x0c\"R\n\nHelloEvent\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x12\n\ninit_state\x18\x02 \x01(\x0c\x12\x16\n\twandb_run\x18\x03 \x01(\x0cH\x00\x88\x01\x01\x42\x0c\n\n_wandb_run\"\x13\n\x11SendWandbRunEvent\"\xcd\x02\n\x11SubscribeResponse\x12*\n\x04type\x18\x01 \x01(\x0e\x32\x1c.distributed.ServerEventType\x12\x31\n\nsend_state\x18\x02 \x01(\x0b\x32\x1b.distributed.SendStateEventH\x00\x12\x39\n\x0e\x65valuate_batch\x18\x03 \x01(\x0b\x32\x1f.distributed.EvaluateBatchEventH\x00\x12\x31\n\noptim_step\x18\x04 \x01(\x0b\x32\x1b.distributed.OptimStepEventH\x00\x12(\n\x05hello\x18\x05 \x01(\x0b\x32\x17.distributed.HelloEventH\x00\x12\x38\n\x0esend_wandb_run\x18\x06 \x01(\x0b\x32\x1e.distributed.SendWandbRunEventH\x00\x42\x07\n\x05\x65vent*\x83\x01\n\x0fServerEventType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0e\n\nSEND_STATE\x10\x01\x12\x12\n\x0e\x45VALUATE_BATCH\x10\x02\x12\x10\n\x0cSTATE_UPDATE\x10\x03\x12\x0e\n\nOPTIM_STEP\x10\x04\x12\t\n\x05HELLO\x10\x05\x12\x12\n\x0eSEND_WANDB_RUN\x10\x06\x32\x8d\x03\n\tESService\x12=\n\x04\x44one\x12\x18.distributed.DoneRequest\x1a\x19.distributed.DoneResponse\"\x00\x12L\n\tHeartbeat\x12\x1d.distributed.HeartbeatRequest\x1a\x1e.distributed.HeartbeatResponse\"\x00\x12L\n\tSendState\x12\x1d.distributed.SendStateRequest\x1a\x1e.distributed.SendStateResponse\"\x00\x12U\n\x0cSendWandbRun\x12 .distributed.SendWandbRunRequest\x1a!.distributed.SendWandbRunResponse\"\x00\x12N\n\tSubscribe\x12\x1d.distributed.SubscribeRequest\x1a\x1e.distributed.SubscribeResponse\"\x00\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'distributed.distributed_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_SERVEREVENTTYPE']._serialized_start=634
-  _globals['_SERVEREVENTTYPE']._serialized_end=734
+  _globals['_SERVEREVENTTYPE']._serialized_start=1050
+  _globals['_SERVEREVENTTYPE']._serialized_end=1181
   _globals['_SLICE']._serialized_start=79
   _globals['_SLICE']._serialized_end=114
-  _globals['_HELLOREQUEST']._serialized_start=116
-  _globals['_HELLOREQUEST']._serialized_end=148
-  _globals['_HELLORESPONSE']._serialized_start=150
-  _globals['_HELLORESPONSE']._serialized_end=177
-  _globals['_HEARTBEATREQUEST']._serialized_start=179
-  _globals['_HEARTBEATREQUEST']._serialized_end=256
-  _globals['_HEARTBEATRESPONSE']._serialized_start=258
-  _globals['_HEARTBEATRESPONSE']._serialized_end=289
-  _globals['_DONEREQUEST']._serialized_start=291
-  _globals['_DONEREQUEST']._serialized_end=338
-  _globals['_DONERESPONSE']._serialized_start=340
-  _globals['_DONERESPONSE']._serialized_end=354
-  _globals['_SENDSTATEREQUEST']._serialized_start=356
-  _globals['_SENDSTATEREQUEST']._serialized_end=401
-  _globals['_SENDSTATERESPONSE']._serialized_start=403
-  _globals['_SENDSTATERESPONSE']._serialized_end=422
-  _globals['_SUBSCRIBEREQUEST']._serialized_start=424
-  _globals['_SUBSCRIBEREQUEST']._serialized_end=454
-  _globals['_SUBSCRIBERESPONSE']._serialized_start=457
-  _globals['_SUBSCRIBERESPONSE']._serialized_end=632
-  _globals['_ESSERVICE']._serialized_start=737
-  _globals['_ESSERVICE']._serialized_end=1113
+  _globals['_HEARTBEATREQUEST']._serialized_start=116
+  _globals['_HEARTBEATREQUEST']._serialized_end=193
+  _globals['_HEARTBEATRESPONSE']._serialized_start=195
+  _globals['_HEARTBEATRESPONSE']._serialized_end=226
+  _globals['_DONEREQUEST']._serialized_start=228
+  _globals['_DONEREQUEST']._serialized_end=275
+  _globals['_DONERESPONSE']._serialized_start=277
+  _globals['_DONERESPONSE']._serialized_end=291
+  _globals['_SENDSTATEREQUEST']._serialized_start=293
+  _globals['_SENDSTATEREQUEST']._serialized_end=338
+  _globals['_SENDSTATERESPONSE']._serialized_start=340
+  _globals['_SENDSTATERESPONSE']._serialized_end=359
+  _globals['_SENDWANDBRUNREQUEST']._serialized_start=361
+  _globals['_SENDWANDBRUNREQUEST']._serialized_end=413
+  _globals['_SENDWANDBRUNRESPONSE']._serialized_start=415
+  _globals['_SENDWANDBRUNRESPONSE']._serialized_end=437
+  _globals['_SUBSCRIBEREQUEST']._serialized_start=439
+  _globals['_SUBSCRIBEREQUEST']._serialized_end=475
+  _globals['_SENDSTATEEVENT']._serialized_start=477
+  _globals['_SENDSTATEEVENT']._serialized_end=493
+  _globals['_EVALUATEBATCHEVENT']._serialized_start=495
+  _globals['_EVALUATEBATCHEVENT']._serialized_end=554
+  _globals['_OPTIMSTEPEVENT']._serialized_start=556
+  _globals['_OPTIMSTEPEVENT']._serialized_end=606
+  _globals['_HELLOEVENT']._serialized_start=608
+  _globals['_HELLOEVENT']._serialized_end=690
+  _globals['_SENDWANDBRUNEVENT']._serialized_start=692
+  _globals['_SENDWANDBRUNEVENT']._serialized_end=711
+  _globals['_SUBSCRIBERESPONSE']._serialized_start=714
+  _globals['_SUBSCRIBERESPONSE']._serialized_end=1047
+  _globals['_ESSERVICE']._serialized_start=1184
+  _globals['_ESSERVICE']._serialized_end=1581
 # @@protoc_insertion_point(module_scope)

@@ -14,11 +14,15 @@ class ServerEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     EVALUATE_BATCH: _ClassVar[ServerEventType]
     STATE_UPDATE: _ClassVar[ServerEventType]
     OPTIM_STEP: _ClassVar[ServerEventType]
+    HELLO: _ClassVar[ServerEventType]
+    SEND_WANDB_RUN: _ClassVar[ServerEventType]
 UNKNOWN: ServerEventType
 SEND_STATE: ServerEventType
 EVALUATE_BATCH: ServerEventType
 STATE_UPDATE: ServerEventType
 OPTIM_STEP: ServerEventType
+HELLO: ServerEventType
+SEND_WANDB_RUN: ServerEventType
 
 class Slice(_message.Message):
     __slots__ = ("start", "end")
@@ -27,18 +31,6 @@ class Slice(_message.Message):
     start: int
     end: int
     def __init__(self, start: _Optional[int] = ..., end: _Optional[int] = ...) -> None: ...
-
-class HelloRequest(_message.Message):
-    __slots__ = ("num_cpus",)
-    NUM_CPUS_FIELD_NUMBER: _ClassVar[int]
-    num_cpus: int
-    def __init__(self, num_cpus: _Optional[int] = ...) -> None: ...
-
-class HelloResponse(_message.Message):
-    __slots__ = ("id",)
-    ID_FIELD_NUMBER: _ClassVar[int]
-    id: int
-    def __init__(self, id: _Optional[int] = ...) -> None: ...
 
 class HeartbeatRequest(_message.Message):
     __slots__ = ("id", "timestamp")
@@ -78,20 +70,68 @@ class SendStateResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class SubscribeRequest(_message.Message):
-    __slots__ = ("id",)
+class SendWandbRunRequest(_message.Message):
+    __slots__ = ("id", "wandb_run")
     ID_FIELD_NUMBER: _ClassVar[int]
+    WANDB_RUN_FIELD_NUMBER: _ClassVar[int]
     id: int
-    def __init__(self, id: _Optional[int] = ...) -> None: ...
+    wandb_run: bytes
+    def __init__(self, id: _Optional[int] = ..., wandb_run: _Optional[bytes] = ...) -> None: ...
+
+class SendWandbRunResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class SubscribeRequest(_message.Message):
+    __slots__ = ("num_cpus",)
+    NUM_CPUS_FIELD_NUMBER: _ClassVar[int]
+    num_cpus: int
+    def __init__(self, num_cpus: _Optional[int] = ...) -> None: ...
+
+class SendStateEvent(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class EvaluateBatchEvent(_message.Message):
+    __slots__ = ("pop_slice",)
+    POP_SLICE_FIELD_NUMBER: _ClassVar[int]
+    pop_slice: Slice
+    def __init__(self, pop_slice: _Optional[_Union[Slice, _Mapping]] = ...) -> None: ...
+
+class OptimStepEvent(_message.Message):
+    __slots__ = ("logging", "rewards")
+    LOGGING_FIELD_NUMBER: _ClassVar[int]
+    REWARDS_FIELD_NUMBER: _ClassVar[int]
+    logging: bool
+    rewards: _containers.RepeatedScalarFieldContainer[bytes]
+    def __init__(self, logging: bool = ..., rewards: _Optional[_Iterable[bytes]] = ...) -> None: ...
+
+class HelloEvent(_message.Message):
+    __slots__ = ("id", "init_state", "wandb_run")
+    ID_FIELD_NUMBER: _ClassVar[int]
+    INIT_STATE_FIELD_NUMBER: _ClassVar[int]
+    WANDB_RUN_FIELD_NUMBER: _ClassVar[int]
+    id: int
+    init_state: bytes
+    wandb_run: bytes
+    def __init__(self, id: _Optional[int] = ..., init_state: _Optional[bytes] = ..., wandb_run: _Optional[bytes] = ...) -> None: ...
+
+class SendWandbRunEvent(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class SubscribeResponse(_message.Message):
-    __slots__ = ("type", "optim_rewards", "eval_pop_slices", "update_state")
+    __slots__ = ("type", "send_state", "evaluate_batch", "optim_step", "hello", "send_wandb_run")
     TYPE_FIELD_NUMBER: _ClassVar[int]
-    OPTIM_REWARDS_FIELD_NUMBER: _ClassVar[int]
-    EVAL_POP_SLICES_FIELD_NUMBER: _ClassVar[int]
-    UPDATE_STATE_FIELD_NUMBER: _ClassVar[int]
+    SEND_STATE_FIELD_NUMBER: _ClassVar[int]
+    EVALUATE_BATCH_FIELD_NUMBER: _ClassVar[int]
+    OPTIM_STEP_FIELD_NUMBER: _ClassVar[int]
+    HELLO_FIELD_NUMBER: _ClassVar[int]
+    SEND_WANDB_RUN_FIELD_NUMBER: _ClassVar[int]
     type: ServerEventType
-    optim_rewards: _containers.RepeatedScalarFieldContainer[bytes]
-    eval_pop_slices: _containers.RepeatedCompositeFieldContainer[Slice]
-    update_state: bytes
-    def __init__(self, type: _Optional[_Union[ServerEventType, str]] = ..., optim_rewards: _Optional[_Iterable[bytes]] = ..., eval_pop_slices: _Optional[_Iterable[_Union[Slice, _Mapping]]] = ..., update_state: _Optional[bytes] = ...) -> None: ...
+    send_state: SendStateEvent
+    evaluate_batch: EvaluateBatchEvent
+    optim_step: OptimStepEvent
+    hello: HelloEvent
+    send_wandb_run: SendWandbRunEvent
+    def __init__(self, type: _Optional[_Union[ServerEventType, str]] = ..., send_state: _Optional[_Union[SendStateEvent, _Mapping]] = ..., evaluate_batch: _Optional[_Union[EvaluateBatchEvent, _Mapping]] = ..., optim_step: _Optional[_Union[OptimStepEvent, _Mapping]] = ..., hello: _Optional[_Union[HelloEvent, _Mapping]] = ..., send_wandb_run: _Optional[_Union[SendWandbRunEvent, _Mapping]] = ...) -> None: ...

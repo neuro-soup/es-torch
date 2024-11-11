@@ -32,6 +32,13 @@ message SendStateRequest {
 
 message SendStateResponse {}
 
+message SendWandbRunRequest {
+  int32 id = 1;
+  bytes wandb_run = 2;
+}
+
+message SendWandbRunResponse {}
+
 enum ServerEventType {
   UNKNOWN = 0;
   SEND_STATE = 1;
@@ -39,6 +46,7 @@ enum ServerEventType {
   STATE_UPDATE = 3;
   OPTIM_STEP = 4;
   HELLO = 5;
+  SEND_WANDB_RUN = 6;
 }
 
 message SubscribeRequest {
@@ -62,6 +70,7 @@ message HelloEvent {
   optional bytes wandb_run = 3;
 }
 
+message SendWandbRunEvent {}
 
 message SubscribeResponse {
   ServerEventType type = 1;
@@ -71,6 +80,7 @@ message SubscribeResponse {
     EvaluateBatchEvent evaluate_batch = 3;
     OptimStepEvent optim_step = 4;
     HelloEvent hello = 5;
+    SendWandbRunEvent send_wandb_run = 6;
   }
 }
 
@@ -83,6 +93,9 @@ service ESService {
 
   // send state if server demands it
   rpc SendState(SendStateRequest) returns (SendStateResponse) {}
+
+  // send wandb run if server demands it
+  rpc SendWandbRun(SendWandbRunRequest) returns (SendWandbRunResponse) {}
   
   // subscribe to server events
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {}

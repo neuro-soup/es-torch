@@ -34,11 +34,6 @@ class ESServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.Hello = channel.unary_unary(
-                '/distributed.ESService/Hello',
-                request_serializer=distributed_dot_distributed__pb2.HelloRequest.SerializeToString,
-                response_deserializer=distributed_dot_distributed__pb2.HelloResponse.FromString,
-                _registered_method=True)
         self.Done = channel.unary_unary(
                 '/distributed.ESService/Done',
                 request_serializer=distributed_dot_distributed__pb2.DoneRequest.SerializeToString,
@@ -54,6 +49,11 @@ class ESServiceStub(object):
                 request_serializer=distributed_dot_distributed__pb2.SendStateRequest.SerializeToString,
                 response_deserializer=distributed_dot_distributed__pb2.SendStateResponse.FromString,
                 _registered_method=True)
+        self.SendWandbRun = channel.unary_unary(
+                '/distributed.ESService/SendWandbRun',
+                request_serializer=distributed_dot_distributed__pb2.SendWandbRunRequest.SerializeToString,
+                response_deserializer=distributed_dot_distributed__pb2.SendWandbRunResponse.FromString,
+                _registered_method=True)
         self.Subscribe = channel.unary_stream(
                 '/distributed.ESService/Subscribe',
                 request_serializer=distributed_dot_distributed__pb2.SubscribeRequest.SerializeToString,
@@ -63,13 +63,6 @@ class ESServiceStub(object):
 
 class ESServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
-
-    def Hello(self, request, context):
-        """worker joins
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
 
     def Done(self, request, context):
         """epoch is done
@@ -92,6 +85,13 @@ class ESServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SendWandbRun(self, request, context):
+        """send wandb run if server demands it
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Subscribe(self, request, context):
         """subscribe to server events
         """
@@ -102,11 +102,6 @@ class ESServiceServicer(object):
 
 def add_ESServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Hello': grpc.unary_unary_rpc_method_handler(
-                    servicer.Hello,
-                    request_deserializer=distributed_dot_distributed__pb2.HelloRequest.FromString,
-                    response_serializer=distributed_dot_distributed__pb2.HelloResponse.SerializeToString,
-            ),
             'Done': grpc.unary_unary_rpc_method_handler(
                     servicer.Done,
                     request_deserializer=distributed_dot_distributed__pb2.DoneRequest.FromString,
@@ -121,6 +116,11 @@ def add_ESServiceServicer_to_server(servicer, server):
                     servicer.SendState,
                     request_deserializer=distributed_dot_distributed__pb2.SendStateRequest.FromString,
                     response_serializer=distributed_dot_distributed__pb2.SendStateResponse.SerializeToString,
+            ),
+            'SendWandbRun': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendWandbRun,
+                    request_deserializer=distributed_dot_distributed__pb2.SendWandbRunRequest.FromString,
+                    response_serializer=distributed_dot_distributed__pb2.SendWandbRunResponse.SerializeToString,
             ),
             'Subscribe': grpc.unary_stream_rpc_method_handler(
                     servicer.Subscribe,
@@ -137,33 +137,6 @@ def add_ESServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class ESService(object):
     """Missing associated documentation comment in .proto file."""
-
-    @staticmethod
-    def Hello(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/distributed.ESService/Hello',
-            distributed_dot_distributed__pb2.HelloRequest.SerializeToString,
-            distributed_dot_distributed__pb2.HelloResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
 
     @staticmethod
     def Done(request,
@@ -236,6 +209,33 @@ class ESService(object):
             '/distributed.ESService/SendState',
             distributed_dot_distributed__pb2.SendStateRequest.SerializeToString,
             distributed_dot_distributed__pb2.SendStateResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendWandbRun(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/distributed.ESService/SendWandbRun',
+            distributed_dot_distributed__pb2.SendWandbRunRequest.SerializeToString,
+            distributed_dot_distributed__pb2.SendWandbRunResponse.FromString,
             options,
             channel_credentials,
             insecure,
