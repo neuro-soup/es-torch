@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
-	"github.com/neuro-soup/es-torch/server/pkg/proto/es"
-	"github.com/neuro-soup/es-torch/server/pkg/proto/es/esconnect"
+	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed"
+	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed/distributedconnect"
 )
 
 type server struct {
@@ -21,7 +21,7 @@ type server struct {
 	hellosMu *sync.RWMutex
 }
 
-var _ esconnect.ESServiceHandler = (*server)(nil)
+var _ distributedconnect.ESServiceHandler = (*server)(nil)
 
 func newServer() *server {
 	return &server{
@@ -30,38 +30,10 @@ func newServer() *server {
 	}
 }
 
-func (s *server) Hello(
-	ctx context.Context,
-	req *connect.Request[es.HelloRequest],
-) (*connect.Response[es.HelloResponse], error) {
-	now := time.Now()
-	slog.Debug("received hello request", "timestamp", now)
-
-	// add worker to pool
-	w := newWorker(uint8(req.Msg.NumCpus))
-	id := s.workers.add(w)
-	slog.Debug("added worker", "id", id, "timestamp", now)
-
-	// add worker to hellos list
-	s.hellosMu.Lock()
-	s.hellos = append(s.hellos, w)
-	s.hellosMu.Unlock()
-
-	// request state from one of the workers
-	s.workers.random().events <- &es.SubscribeResponse{
-		Type: es.ServerEventType_SEND_STATE,
-	}
-
-	// TODO: maybe request state from a small percentage of multiple workers for
-	// fault tolerance?
-
-	return connect.NewResponse(&es.HelloResponse{Id: int32(id)}), nil
-}
-
 func (s *server) Done(
 	ctx context.Context,
-	req *connect.Request[es.DoneRequest],
-) (*connect.Response[es.DoneResponse], error) {
+	req *connect.Request[distributed.DoneRequest],
+) (*connect.Response[distributed.DoneResponse], error) {
 	slog.Debug("received done request", "worker_id", req.Msg.Id)
 
 	w := s.workers.get(uint8(req.Msg.Id))
@@ -70,26 +42,30 @@ func (s *server) Done(
 		return nil, errors.New("worker not found")
 	}
 
-	w.rewards = req.Msg.Reward
+	w.rewards = req.Msg.RewardBatch
 	slog.Debug("updated worker rewards", "worker_id", req.Msg.Id)
 
 	if s.workers.done() {
 		slog.Debug("all worker rewards received, triggering next epoch...")
 		s.workers.resetRewards()
-		s.workers.broadcast(&es.SubscribeResponse{
-			Type:    es.ServerEventType_NEXT_EPOCH,
-			Rewards: s.workers.rewards(),
+		s.workers.broadcast(&distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_OPTIM_STEP,
+			Event: &distributed.SubscribeResponse_OptimStep{
+				OptimStep: &distributed.OptimStepEvent{
+					Rewards: s.workers.rewards(),
+				},
+			},
 		})
 		slog.Debug("broadcasted next epoch event to all workers", "workers", len(s.workers.workers))
 	}
 
-	return connect.NewResponse(&es.DoneResponse{}), nil
+	return connect.NewResponse(&distributed.DoneResponse{}), nil
 }
 
 func (s *server) Heartbeat(
 	ctx context.Context,
-	req *connect.Request[es.HeartbeatRequest],
-) (*connect.Response[es.HeartbeatResponse], error) {
+	req *connect.Request[distributed.HeartbeatRequest],
+) (*connect.Response[distributed.HeartbeatResponse], error) {
 	now := time.Now()
 	slog.Debug("received heartbeat request", "timestamp", now)
 
@@ -102,13 +78,13 @@ func (s *server) Heartbeat(
 	w.lastHeartBeat = now
 
 	slog.Debug("acknowledged worker heartbeat", "worker_id", req.Msg.Id)
-	return connect.NewResponse(&es.HeartbeatResponse{Ok: true}), nil
+	return connect.NewResponse(&distributed.HeartbeatResponse{Ok: true}), nil
 }
 
 func (s *server) SendState(
 	ctx context.Context,
-	req *connect.Request[es.SendStateRequest],
-) (*connect.Response[es.SendStateResponse], error) {
+	req *connect.Request[distributed.SendStateRequest],
+) (*connect.Response[distributed.SendStateResponse], error) {
 	slog.Debug("received send state request", "worker_id", req.Msg.Id)
 
 	w := s.workers.get(uint8(req.Msg.Id))
@@ -118,50 +94,63 @@ func (s *server) SendState(
 	}
 
 	s.hellosMu.Lock()
-	evt := &es.SubscribeResponse{
-		Type:         es.ServerEventType_STATE_UPDATE,
-		UpdatedState: req.Msg.State,
-	}
-	for _, hello := range s.hellos {
+	for id, hello := range s.hellos {
+		evt := &distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_HELLO,
+			Event: &distributed.SubscribeResponse_Hello{
+				Hello: &distributed.HelloEvent{
+					Id:        int32(id),
+					InitState: req.Msg.State,
+				},
+			},
+		}
 		hello.events <- evt
 	}
 	s.hellos = nil
 	s.hellosMu.Unlock()
 
 	slog.Debug("sent state update to new workers", "worker_id", req.Msg.Id)
-	return connect.NewResponse(&es.SendStateResponse{}), nil
+	return connect.NewResponse(&distributed.SendStateResponse{}), nil
 }
 
 func (s *server) Subscribe(
 	ctx context.Context,
-	req *connect.Request[es.SubscribeRequest],
-	stream *connect.ServerStream[es.SubscribeResponse],
+	req *connect.Request[distributed.SubscribeRequest],
+	stream *connect.ServerStream[distributed.SubscribeResponse],
 ) error {
-	slog.Debug("received subscribe request", "worker_id", req.Msg.Id)
+	slog.Debug("received subscribe request", "num_cpus", req.Msg.NumCpus)
 
-	w := s.workers.get(uint8(req.Msg.Id))
-	if w == nil {
-		slog.Error("worker not found", "worker_id", req.Msg.Id)
-		return errors.New("worker not found")
-	}
+	w := newWorker(uint8(req.Msg.NumCpus))
+	id := s.workers.add(w)
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
-				slog.Debug("received cancel signal", "worker_id", req.Msg.Id)
-				s.workers.remove(uint8(req.Msg.Id))
+				slog.Debug("received cancel signal", "worker_id", id)
+				s.workers.remove(id)
 				break
 
 			case evt := <-w.events: // TODO: satisfy govet
 				if err := stream.Send(evt); err != nil {
-					slog.Error("failed to send event", "err", err, "worker_id", req.Msg.Id)
+					slog.Error("failed to send event", "err", err, "worker_id", id)
 				}
-				slog.Debug("sent event", "worker_id", req.Msg.Id, "event", evt.Type.String())
+				slog.Debug("sent event", "worker_id", id, "event", evt.Type.String())
 			}
 		}
 	}()
 
-	slog.Debug("subscribed to worker events", "worker_id", req.Msg.Id)
+	s.hellosMu.Lock()
+	s.hellos = append(s.hellos, w)
+	s.hellosMu.Unlock()
+
+	s.workers.random().events <- &distributed.SubscribeResponse{
+		Type: distributed.ServerEventType_SEND_STATE,
+		Event: &distributed.SubscribeResponse_SendState{
+			SendState: new(distributed.SendStateEvent),
+		},
+	}
+
+	slog.Debug("subscribed to worker events", "worker_id", id)
 	return nil
 }

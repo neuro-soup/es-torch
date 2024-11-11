@@ -42,7 +42,7 @@ enum ServerEventType {
 }
 
 message SubscribeRequest {
-  int32 id = 1;
+  int32 num_cpus = 1;
 }
 
 message SendStateEvent {}
@@ -51,17 +51,15 @@ message EvaluateBatchEvent {
   Slice pop_slice = 1;
 }
 
-message StateUpdateEvent {
-  bytes new_state = 1;
-}
-
 message OptimStepEvent {
-  repeated bytes rewards = 1;
+  bool logging = 1;
+  repeated bytes rewards = 2;
 }
 
 message HelloEvent {
   int32 id = 1;
   bytes init_state = 2;
+  optional bytes wandb_run = 3;
 }
 
 
@@ -71,9 +69,8 @@ message SubscribeResponse {
   oneof event {
     SendStateEvent send_state = 2;
     EvaluateBatchEvent evaluate_batch = 3;
-    StateUpdateEvent state_update = 4;
-    OptimStepEvent optim_step = 5;
-    HelloEvent hello = 6;
+    OptimStepEvent optim_step = 4;
+    HelloEvent hello = 5;
   }
 }
 

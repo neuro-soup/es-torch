@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neuro-soup/es-torch/server/pkg/proto/es"
+	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed"
 )
 
 type worker struct {
@@ -14,7 +14,7 @@ type worker struct {
 	numCPUs uint8
 	rewards []byte
 
-	events chan *es.SubscribeResponse
+	events chan *distributed.SubscribeResponse
 }
 
 func newWorker(numCPUs uint8) *worker {
@@ -22,7 +22,7 @@ func newWorker(numCPUs uint8) *worker {
 		joinedAt:      time.Now(),
 		lastHeartBeat: time.Now(),
 		numCPUs:       numCPUs,
-		events:        make(chan *es.SubscribeResponse, 15),
+		events:        make(chan *distributed.SubscribeResponse, 15),
 	}
 }
 
@@ -81,7 +81,7 @@ func (wp *workerPool) done() bool {
 	return true
 }
 
-func (wp *workerPool) broadcast(evt *es.SubscribeResponse) {
+func (wp *workerPool) broadcast(evt *distributed.SubscribeResponse) {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
@@ -103,7 +103,7 @@ func (wp *workerPool) rewards() [][]byte {
 	return rewards
 }
 
-func (wp *workerPool) random() *worker {
+func (wp *workerPool) random() *worker { // TODO: use most trustworthy (ping)
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
 
