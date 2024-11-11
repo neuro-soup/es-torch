@@ -13,15 +13,16 @@ import gymnasium as gym
 import numpy as np
 import torch
 import wandb
+from es_torch.distributed import distributed_pb2 as proto, distributed_pb2_grpc as services
 from google.protobuf import timestamp_pb2
 from gymnasium import VectorizeMode
 
-from es_torch.distrbuted import Config as ESConfig, ES
-from es_torch.es import es_pb2, es_pb2_grpc
+from es_torch.distrbuted_optim import Config as ESConfig, ES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ExperimentConfig,
-    WandbConfig, reshape_params,
+    WandbConfig,
+    reshape_params,
 )
 
 
@@ -70,14 +71,15 @@ class Worker:
     def __init__(self, config: Config, server_address: str) -> None:
         self.config = config
         self.channel = grpc.insecure_channel(server_address)
-        self.stub = es_pb2_grpc.ESServiceStub(self.channel)
+        self.stub = services.ESServiceStub(self.channel)
+        self._epoch_count = 0
 
     async def run(self) -> None:
-        # Register with the server
         num_cpus = multiprocessing.cpu_count()
-        resp = self.stub.Hello(es_pb2.HelloRequest(num_cpus=num_cpus))
-        self.optim = pickle.loads(resp.state)
-        self.worker_id = resp.id
+        self.worker_id = self.stub.Hello(proto.HelloRequest(num_cpus=num_cpus)).id
+        # TODO
+        # resp = self.stub.GetState(es_pb2.GetStateRequest(id=self.worker_id))
+        # self.optim = pickle.loads(resp.state)
 
         heartbeat_task = asyncio.create_task(self._send_heartbeats())
         subscribe_task = asyncio.create_task(self._handle_server_events())
@@ -93,35 +95,37 @@ class Worker:
             try:
                 timestamp = timestamp_pb2.Timestamp()
                 timestamp.FromDatetime(datetime.now())
-                self.stub.Heartbeat(es_pb2.HeartbeatRequest(id=self.worker_id, timestamp=timestamp))
+                self.stub.Heartbeat(proto.HeartbeatRequest(id=self.worker_id, timestamp=timestamp))
                 await asyncio.sleep(5)
             except Exception as e:
-                print(f"Heartbeat error: {e}")
+                print(f"Heartbeat error: {e} on worker {self.worker_id}")
                 await asyncio.sleep(1)
 
-    async def _handle_server_events(self):
-        while True:
-            try:
-                subscribe_request = es_pb2.SubscribeRequest(id=self.worker_id)
-                responses = self.stub.Subscribe(subscribe_request)
-                for response in responses:
-                    if response.type == es_pb2.ServerEventType.SEND_STATE:
-                        self.stub.SendState(es_pb2.SendStateRequest(id=self.worker_id, state=pickle.dumps(self.optim)))
-                    # elif response.type == es_pb2.ServerEventType.STATE_UPDATE:
-                    #     state_tensor = torch.frombuffer(response.updated_state, dtype=torch.float32)
-                    #     self.optim.params = state_tensor.reshape(1, -1)
-                    elif response.type == es_pb2.ServerEventType.NEXT_EPOCH:
-                        rewards = torch.frombuffer(response.rewards, dtype=torch.float32)
+    async def _handle_server_events(self) -> None:
+        try:
+            subscribe_request = proto.SubscribeRequest(id=self.worker_id)
+            responses = self.stub.Subscribe(subscribe_request)
+            for res in responses:  # loops indefinitely
+                if self._epoch_count >= self.config.epochs:
+                    break
+                match res.type:
+                    case proto.ServerEventType.EVALUATE_BATCH:
                         perturbed_params = self.optim.get_perturbed_params()
-                        results = self.evaluate_policy_batch(perturbed_params)
-
-                        # Update optimizer and send results back to server
-                        self.optim.step(perturbed_params=perturbed_params, rewards=rewards)
-                        self.stub.Done(es_pb2.DoneRequest(id=self.worker_id, reward=results.numpy().tobytes()))
-
-            except Exception as e:
-                print(f"Subscription error: {e}")
-                await asyncio.sleep(1)
+                        policy_batch_slice = slice(res.eval_pop_slice.start, res.eval_pop_slice.end)
+                        results = self.evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
+                        self.stub.Done(proto.DoneRequest(id=self.worker_id, reward_batch=results.numpy().tobytes()))
+                    case proto.ServerEventType.OPTIM_STEP:
+                        rewards = torch.frombuffer(res.optim_rewards, dtype=torch.float32)
+                        self.optim.step(rewards=rewards)
+                        self._epoch_count += 1
+                    case proto.ServerEventType.SEND_STATE:  # a new worker joins and needs the current state
+                        # TODO also requires epoch count
+                        self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(self.optim)))
+                    case _:
+                        print(f"Unknown event type: {res.type}")
+        except Exception as e:
+            print(f"Subscription error: {e}")
+            await asyncio.sleep(1)
 
     def evaluate_policy_batch(self, policy_params_batch: torch.Tensor) -> torch.Tensor:
         env = gym.make_vec("Humanoid-v5", num_envs=self.config.es.n_pop, vectorization_mode=VectorizeMode.ASYNC)
@@ -167,8 +171,3 @@ def train(config: Config):
     finally:
         if config.wandb.enabled:
             wandb.finish()
-
-
-if __name__ == "__main__":
-    config = Config.default()
-    train(config)
