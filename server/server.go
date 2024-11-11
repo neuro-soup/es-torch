@@ -129,7 +129,7 @@ func (s *server) SendState(
 	s.hellosMu.Unlock()
 
 	slog.Debug("sent state update to new workers", "worker_id", req.Msg.Id)
-	return connect.NewResponse(&es.SendStateResponse{})
+	return connect.NewResponse(&es.SendStateResponse{}), nil
 }
 
 func (s *server) Subscribe(
