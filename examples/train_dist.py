@@ -3,8 +3,8 @@ from __future__ import annotations, annotations
 import argparse
 import asyncio
 import multiprocessing
+import os
 import pickle
-import typing
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -66,20 +66,20 @@ class Config(ExperimentConfig):
         )
 
 
-class WorkerState(typing.NamedTuple):
+@dataclass
+class WorkerState:
     epoch: int
     optim: ES
     wandb_run: wandb.sdk.wandb_run.Run | None
 
 
 class Worker:
-    worker_id: int
-    state: WorkerState | None
-
     def __init__(self, config: Config, server_address: str) -> None:
         self.config = config
         self.channel = grpc.insecure_channel(server_address)
         self.stub = services.ESServiceStub(self.channel)
+        self.worker_id: int | None = None
+        self.state: WorkerState | None = None
 
     async def run(self) -> None:
         heartbeat_task = asyncio.create_task(self._send_heartbeats())
@@ -103,19 +103,18 @@ class Worker:
 
     async def _handle_server_events(self) -> None:
         try:
-            num_cpus = multiprocessing.cpu_count()
-            subscribe_res = self.stub.Subscribe(proto.SubscribeRequest(num_cpus=num_cpus))
-            responses = self.stub.Subscribe(subscribe_res)
-            response_funcs = {
+            response_fxns = {
                 proto.ServerEventType.HELLO: self._handle_hello,
                 proto.ServerEventType.EVALUATE_BATCH: self._handle_evaluate_batch,
                 proto.ServerEventType.OPTIM_STEP: self._handle_optim_step,
                 proto.ServerEventType.SEND_STATE: self._handle_send_state,
             }
+            num_cpus = multiprocessing.cpu_count()
+            responses = self.stub.Subscribe(proto.SubscribeRequest(num_cpus=num_cpus))
             for res in responses:  # loops indefinitely
                 if self.state.epoch >= self.config.epochs:
                     break
-                response_funcs[res.type](res)  # noqa
+                response_fxns[res.type](res)  # noqa
 
         except Exception as e:
             print(f"Subscription error: {e}")
