@@ -151,7 +151,7 @@ class Worker:
         perturbed_params = self.state.optim.get_perturbed_params()
         policy_batch_slice = slice(res.pop_slice.start, res.pop_slice.end)
         results = self._evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
-        self.stub.Done(proto.DoneRequest(id=self.worker_id, reward_batch=bytes([r.item() for r in results])))
+        self.stub.Done(proto.DoneRequest(id=self.worker_id, batch_rewards=[bytes(r.item()) for r in results]))
 
     def _handle_optim_step(self, res: proto.OptimStepEvent) -> None:
         rewards = torch.frombuffer(res.rewards, dtype=torch.float32).flatten().to(self.config.device)
