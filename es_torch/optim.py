@@ -63,10 +63,10 @@ class Config:
 
 class ES:
     def __init__(
-            self,
-            config: Config,
-            params: Float[Tensor, "params"],
-            eval_fxn: EvalFxn,
+        self,
+        config: Config,
+        params: Float[Tensor, "params"],
+        eval_fxn: EvalFxn,
     ) -> None:
         self._cfg = config
         self.params = params
