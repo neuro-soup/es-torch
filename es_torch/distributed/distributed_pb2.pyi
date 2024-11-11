@@ -45,12 +45,14 @@ class HeartbeatResponse(_message.Message):
     def __init__(self, ok: bool = ...) -> None: ...
 
 class DoneRequest(_message.Message):
-    __slots__ = ("id", "reward_batch")
+    __slots__ = ("id", "slice", "rewards")
     ID_FIELD_NUMBER: _ClassVar[int]
-    REWARD_BATCH_FIELD_NUMBER: _ClassVar[int]
+    SLICE_FIELD_NUMBER: _ClassVar[int]
+    REWARDS_FIELD_NUMBER: _ClassVar[int]
     id: int
-    reward_batch: bytes
-    def __init__(self, id: _Optional[int] = ..., reward_batch: _Optional[bytes] = ...) -> None: ...
+    slice: Slice
+    rewards: _containers.RepeatedScalarFieldContainer[bytes]
+    def __init__(self, id: _Optional[int] = ..., slice: _Optional[_Union[Slice, _Mapping]] = ..., rewards: _Optional[_Iterable[bytes]] = ...) -> None: ...
 
 class DoneResponse(_message.Message):
     __slots__ = ()
@@ -68,23 +70,13 @@ class SendStateResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class SendWandbRunRequest(_message.Message):
-    __slots__ = ("id", "wandb_run")
-    ID_FIELD_NUMBER: _ClassVar[int]
-    WANDB_RUN_FIELD_NUMBER: _ClassVar[int]
-    id: int
-    wandb_run: bytes
-    def __init__(self, id: _Optional[int] = ..., wandb_run: _Optional[bytes] = ...) -> None: ...
-
-class SendWandbRunResponse(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
 class SubscribeRequest(_message.Message):
-    __slots__ = ("num_cpus",)
+    __slots__ = ("num_cpus", "num_pop")
     NUM_CPUS_FIELD_NUMBER: _ClassVar[int]
+    NUM_POP_FIELD_NUMBER: _ClassVar[int]
     num_cpus: int
-    def __init__(self, num_cpus: _Optional[int] = ...) -> None: ...
+    num_pop: int
+    def __init__(self, num_cpus: _Optional[int] = ..., num_pop: _Optional[int] = ...) -> None: ...
 
 class SendStateEvent(_message.Message):
     __slots__ = ()
