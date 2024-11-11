@@ -91,7 +91,7 @@ message OptimStepEvent {
 
 message HelloEvent {
   int32 id = 1;
-  bytes init_state = 2;
+  optional bytes init_state = 2;
   optional bytes wandb_run = 3;
 }
 
