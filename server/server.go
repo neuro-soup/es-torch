@@ -150,6 +150,7 @@ func (s *server) Subscribe(
 			select {
 			case <-ctx.Done():
 				slog.Debug("received cancel signal", "worker_id", req.Msg.Id)
+				s.workers.remove(uint8(req.Msg.Id))
 				break
 
 			case evt := <-w.events: // TODO: satisfy govet
