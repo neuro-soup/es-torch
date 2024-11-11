@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 
@@ -16,7 +17,8 @@ type worker struct {
 	numCPUs uint8
 	rewards []byte
 
-	events chan *distributed.SubscribeResponse
+	events     chan *distributed.SubscribeResponse
+	disconnect chan struct{}
 }
 
 func newWorker(numCPUs uint8) *worker {
@@ -25,6 +27,7 @@ func newWorker(numCPUs uint8) *worker {
 		lastHeartBeat: time.Now(),
 		numCPUs:       numCPUs,
 		events:        make(chan *distributed.SubscribeResponse, 15),
+		disconnect:    make(chan struct{}, 1),
 	}
 }
 
@@ -57,6 +60,11 @@ func (wp *workerPool) remove(id uint8) {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
+	w, ok := wp.workers[id]
+	if !ok {
+		return
+	}
+	w.disconnect <- struct{}{}
 	delete(wp.workers, id)
 }
 
@@ -128,5 +136,18 @@ func (wp *workerPool) resetRewards() {
 
 	for _, w := range wp.workers {
 		w.rewards = nil
+	}
+}
+
+func (wp *workerPool) cleanTimeouts() {
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+
+	for id, w := range wp.workers {
+		if time.Since(w.lastHeartBeat) > time.Minute {
+			slog.Error("worker timed out", "worker_id", id)
+			w.disconnect <- struct{}{}
+			delete(wp.workers, id)
+		}
 	}
 }
