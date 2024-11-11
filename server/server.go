@@ -55,7 +55,6 @@ func (s *server) Done(
 
 	if s.workers.done() {
 		slog.Debug("all worker rewards received, triggering next epoch...")
-		s.workers.resetRewards()
 		s.workers.broadcast(&distributed.SubscribeResponse{
 			Type: distributed.ServerEventType_OPTIM_STEP,
 			Event: &distributed.SubscribeResponse_OptimStep{
@@ -64,6 +63,7 @@ func (s *server) Done(
 				},
 			},
 		})
+		s.workers.resetRewards()
 		slog.Debug("broadcasted next epoch event to all workers", "workers", len(s.workers.workers))
 	}
 
@@ -86,7 +86,7 @@ func (s *server) Heartbeat(
 	w.lastHeartBeat = now
 	w.ping = time.Since(req.Msg.Timestamp.AsTime())
 
-	if w.ping > 1*time.Minute {
+	if w.ping > time.Minute {
 		slog.Error("worker ping timeout", "worker_id", req.Msg.Id)
 		return nil, errors.New("heartbeat was too slow (>=1 minute)")
 	}
