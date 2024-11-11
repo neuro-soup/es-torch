@@ -8,8 +8,10 @@ import (
 )
 
 type worker struct {
-	joinedAt      time.Time
+	joinedAt time.Time
+
 	lastHeartBeat time.Time
+	ping          time.Duration
 
 	numCPUs uint8
 	rewards []byte
@@ -103,15 +105,21 @@ func (wp *workerPool) rewards() [][]byte {
 	return rewards
 }
 
-func (wp *workerPool) random() *worker { // TODO: use most trustworthy (ping)
+func (wp *workerPool) trusted(not uint8) (uint8, *worker) {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
 
-	var w *worker
-	for _, w = range wp.workers {
-		break
+	var (
+		trustedID uint8
+		trusted   *worker
+	)
+	for id, w := range wp.workers {
+		if trusted == nil || w.ping < trusted.ping || id != not {
+			trustedID = id
+			trusted = w
+		}
 	}
-	return w
+	return trustedID, trusted
 }
 
 func (wp *workerPool) resetRewards() {

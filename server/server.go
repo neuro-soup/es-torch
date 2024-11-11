@@ -144,11 +144,27 @@ func (s *server) Subscribe(
 	s.hellos = append(s.hellos, w)
 	s.hellosMu.Unlock()
 
-	s.workers.random().events <- &distributed.SubscribeResponse{
-		Type: distributed.ServerEventType_SEND_STATE,
-		Event: &distributed.SubscribeResponse_SendState{
-			SendState: new(distributed.SendStateEvent),
-		},
+	trustedID, trusted := s.workers.trusted(id)
+	if trusted != nil {
+		slog.Debug("requesting state from trusted worker", "worker_id", id, "trusted_worker_id", trustedID)
+		trusted.events <- &distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_SEND_STATE,
+			Event: &distributed.SubscribeResponse_SendState{
+				SendState: new(distributed.SendStateEvent),
+			},
+		}
+	} else {
+		slog.Debug("no trusted worker found, sending hello directly", "worker_id", id)
+		evt := &distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_HELLO,
+			Event: &distributed.SubscribeResponse_Hello{
+				Hello: &distributed.HelloEvent{
+					Id:        int32(id),
+					InitState: nil,
+				},
+			},
+		}
+		w.events <- evt
 	}
 
 	slog.Debug("subscribed to worker events", "worker_id", id)

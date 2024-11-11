@@ -15,14 +15,12 @@ class ServerEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     STATE_UPDATE: _ClassVar[ServerEventType]
     OPTIM_STEP: _ClassVar[ServerEventType]
     HELLO: _ClassVar[ServerEventType]
-    SEND_WANDB_RUN: _ClassVar[ServerEventType]
 UNKNOWN: ServerEventType
 SEND_STATE: ServerEventType
 EVALUATE_BATCH: ServerEventType
 STATE_UPDATE: ServerEventType
 OPTIM_STEP: ServerEventType
 HELLO: ServerEventType
-SEND_WANDB_RUN: ServerEventType
 
 class Slice(_message.Message):
     __slots__ = ("start", "end")
@@ -107,31 +105,23 @@ class OptimStepEvent(_message.Message):
     def __init__(self, logging: bool = ..., rewards: _Optional[_Iterable[bytes]] = ...) -> None: ...
 
 class HelloEvent(_message.Message):
-    __slots__ = ("id", "init_state", "wandb_run")
+    __slots__ = ("id", "init_state")
     ID_FIELD_NUMBER: _ClassVar[int]
     INIT_STATE_FIELD_NUMBER: _ClassVar[int]
-    WANDB_RUN_FIELD_NUMBER: _ClassVar[int]
     id: int
     init_state: bytes
-    wandb_run: bytes
-    def __init__(self, id: _Optional[int] = ..., init_state: _Optional[bytes] = ..., wandb_run: _Optional[bytes] = ...) -> None: ...
-
-class SendWandbRunEvent(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., init_state: _Optional[bytes] = ...) -> None: ...
 
 class SubscribeResponse(_message.Message):
-    __slots__ = ("type", "send_state", "evaluate_batch", "optim_step", "hello", "send_wandb_run")
+    __slots__ = ("type", "send_state", "evaluate_batch", "optim_step", "hello")
     TYPE_FIELD_NUMBER: _ClassVar[int]
     SEND_STATE_FIELD_NUMBER: _ClassVar[int]
     EVALUATE_BATCH_FIELD_NUMBER: _ClassVar[int]
     OPTIM_STEP_FIELD_NUMBER: _ClassVar[int]
     HELLO_FIELD_NUMBER: _ClassVar[int]
-    SEND_WANDB_RUN_FIELD_NUMBER: _ClassVar[int]
     type: ServerEventType
     send_state: SendStateEvent
     evaluate_batch: EvaluateBatchEvent
     optim_step: OptimStepEvent
     hello: HelloEvent
-    send_wandb_run: SendWandbRunEvent
-    def __init__(self, type: _Optional[_Union[ServerEventType, str]] = ..., send_state: _Optional[_Union[SendStateEvent, _Mapping]] = ..., evaluate_batch: _Optional[_Union[EvaluateBatchEvent, _Mapping]] = ..., optim_step: _Optional[_Union[OptimStepEvent, _Mapping]] = ..., hello: _Optional[_Union[HelloEvent, _Mapping]] = ..., send_wandb_run: _Optional[_Union[SendWandbRunEvent, _Mapping]] = ...) -> None: ...
+    def __init__(self, type: _Optional[_Union[ServerEventType, str]] = ..., send_state: _Optional[_Union[SendStateEvent, _Mapping]] = ..., evaluate_batch: _Optional[_Union[EvaluateBatchEvent, _Mapping]] = ..., optim_step: _Optional[_Union[OptimStepEvent, _Mapping]] = ..., hello: _Optional[_Union[HelloEvent, _Mapping]] = ...) -> None: ...
