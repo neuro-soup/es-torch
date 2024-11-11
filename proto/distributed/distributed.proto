@@ -47,7 +47,6 @@ enum ServerEventType {
   STATE_UPDATE = 3;
   OPTIM_STEP = 4;
   HELLO = 5;
-  SEND_WANDB_RUN = 6;
 }
 
 message SubscribeRequest {
@@ -92,10 +91,7 @@ message OptimStepEvent {
 message HelloEvent {
   int32 id = 1;
   optional bytes init_state = 2;
-  optional bytes wandb_run = 3;
 }
-
-message SendWandbRunEvent {}
 
 message SubscribeResponse {
   ServerEventType type = 1;
@@ -105,7 +101,6 @@ message SubscribeResponse {
     EvaluateBatchEvent evaluate_batch = 3;
     OptimStepEvent optim_step = 4;
     HelloEvent hello = 5;
-    SendWandbRunEvent send_wandb_run = 6;
   }
 }
 

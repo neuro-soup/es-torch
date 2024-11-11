@@ -20,6 +20,7 @@ type worker struct {
 
 	// lastHeartBeat is the time the worker last sent a heartbeat.
 	lastHeartBeat time.Time
+	ping          time.Duration
 
 	// ping is the time the worker took to send a heartbeat.
 	ping time.Duration

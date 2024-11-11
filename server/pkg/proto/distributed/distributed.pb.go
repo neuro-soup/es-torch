@@ -430,6 +430,99 @@ func (*SendStateResponse) Descriptor() ([]byte, []int) {
 	return file_distributed_distributed_proto_rawDescGZIP(), []int{6}
 }
 
+type SendWandbRunRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id       int32  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	WandbRun []byte `protobuf:"bytes,2,opt,name=wandb_run,json=wandbRun,proto3" json:"wandb_run,omitempty"`
+}
+
+func (x *SendWandbRunRequest) Reset() {
+	*x = SendWandbRunRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_distributed_distributed_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SendWandbRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendWandbRunRequest) ProtoMessage() {}
+
+func (x *SendWandbRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_distributed_distributed_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendWandbRunRequest.ProtoReflect.Descriptor instead.
+func (*SendWandbRunRequest) Descriptor() ([]byte, []int) {
+	return file_distributed_distributed_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *SendWandbRunRequest) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *SendWandbRunRequest) GetWandbRun() []byte {
+	if x != nil {
+		return x.WandbRun
+	}
+	return nil
+}
+
+type SendWandbRunResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *SendWandbRunResponse) Reset() {
+	*x = SendWandbRunResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_distributed_distributed_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SendWandbRunResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendWandbRunResponse) ProtoMessage() {}
+
+func (x *SendWandbRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_distributed_distributed_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendWandbRunResponse.ProtoReflect.Descriptor instead.
+func (*SendWandbRunResponse) Descriptor() ([]byte, []int) {
+	return file_distributed_distributed_proto_rawDescGZIP(), []int{8}
+}
+
 type SubscribeRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -445,7 +538,7 @@ type SubscribeRequest struct {
 func (x *SubscribeRequest) Reset() {
 	*x = SubscribeRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_distributed_distributed_proto_msgTypes[7]
+		mi := &file_distributed_distributed_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -458,7 +551,7 @@ func (x *SubscribeRequest) String() string {
 func (*SubscribeRequest) ProtoMessage() {}
 
 func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_distributed_distributed_proto_msgTypes[7]
+	mi := &file_distributed_distributed_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +564,7 @@ func (x *SubscribeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeRequest.ProtoReflect.Descriptor instead.
 func (*SubscribeRequest) Descriptor() ([]byte, []int) {
-	return file_distributed_distributed_proto_rawDescGZIP(), []int{7}
+	return file_distributed_distributed_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SubscribeRequest) GetNumCpus() int32 {
@@ -506,7 +599,7 @@ type SendStateEvent struct {
 func (x *SendStateEvent) Reset() {
 	*x = SendStateEvent{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_distributed_distributed_proto_msgTypes[8]
+		mi := &file_distributed_distributed_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -519,7 +612,7 @@ func (x *SendStateEvent) String() string {
 func (*SendStateEvent) ProtoMessage() {}
 
 func (x *SendStateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_distributed_distributed_proto_msgTypes[8]
+	mi := &file_distributed_distributed_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -532,7 +625,7 @@ func (x *SendStateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendStateEvent.ProtoReflect.Descriptor instead.
 func (*SendStateEvent) Descriptor() ([]byte, []int) {
-	return file_distributed_distributed_proto_rawDescGZIP(), []int{8}
+	return file_distributed_distributed_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SendStateEvent) GetDevice() string {
@@ -553,7 +646,7 @@ type EvaluateBatchEvent struct {
 func (x *EvaluateBatchEvent) Reset() {
 	*x = EvaluateBatchEvent{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_distributed_distributed_proto_msgTypes[9]
+		mi := &file_distributed_distributed_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -566,7 +659,7 @@ func (x *EvaluateBatchEvent) String() string {
 func (*EvaluateBatchEvent) ProtoMessage() {}
 
 func (x *EvaluateBatchEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_distributed_distributed_proto_msgTypes[9]
+	mi := &file_distributed_distributed_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -579,7 +672,7 @@ func (x *EvaluateBatchEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EvaluateBatchEvent.ProtoReflect.Descriptor instead.
 func (*EvaluateBatchEvent) Descriptor() ([]byte, []int) {
-	return file_distributed_distributed_proto_rawDescGZIP(), []int{9}
+	return file_distributed_distributed_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *EvaluateBatchEvent) GetPopSlice() *Slice {
@@ -1077,7 +1170,7 @@ func file_distributed_distributed_proto_init() {
 			}
 		}
 		file_distributed_distributed_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SubscribeRequest); i {
+			switch v := v.(*SendWandbRunRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1089,7 +1182,7 @@ func file_distributed_distributed_proto_init() {
 			}
 		}
 		file_distributed_distributed_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SendStateEvent); i {
+			switch v := v.(*SendWandbRunResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1101,7 +1194,7 @@ func file_distributed_distributed_proto_init() {
 			}
 		}
 		file_distributed_distributed_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*EvaluateBatchEvent); i {
+			switch v := v.(*SubscribeRequest); i {
 			case 0:
 				return &v.state
 			case 1:
