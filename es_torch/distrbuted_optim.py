@@ -76,9 +76,7 @@ class ES:
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
         gradient = (
-                self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum(
-            "np,n->p", self._perturbed_params, rewards
-            )
+            self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
         )
         self.params += gradient - self._cfg.lr * self._cfg.weight_decay * self.params
 
