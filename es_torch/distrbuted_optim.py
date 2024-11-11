@@ -70,17 +70,23 @@ class ES:
             torch.Generator().manual_seed(config.seed),
         )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
+        self._perturbed_params: Float[Tensor, "npop params"] | None = None
 
     @torch.inference_mode()
-    def step(self, perturbed_params: Float[Tensor, "npop params"], rewards: Float[Tensor, "npop"]) -> None:
+    def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
-        gradient = self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum("np,n->p", perturbed_params, rewards)
+        gradient = (
+                self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum(
+            "np,n->p", self._perturbed_params, rewards
+            )
+        )
         self.params += gradient - self._cfg.lr * self._cfg.weight_decay * self.params
 
     @torch.inference_mode()
     def get_perturbed_params(self) -> Float[Tensor, "npop params"]:
         noise = self._get_noise()
-        return self.params.unsqueeze(0) + self._cfg.std * noise
+        self._perturbed_params = self.params.unsqueeze(0) + self._cfg.std * noise
+        return self._perturbed_params.squeeze()
 
     def get_params(self) -> Float[Tensor, "params"]:
         return self.params.squeeze()
