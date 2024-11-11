@@ -82,7 +82,7 @@ func (s *server) Done(
 		slog.Debug("broadcasted next epoch event to all workers", "workers", len(s.workers.workers))
 	}
 
-	return nil, nil
+	return connect.NewResponse(&es.DoneResponse{}), nil
 }
 
 func (s *server) Heartbeat(
