@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/neuro-soup/es-torch/server/pkg/proto/es/esconnect"
+	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed/distributedconnect"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -20,7 +20,7 @@ func main() {
 	slog.SetDefault(log)
 
 	mux := http.NewServeMux()
-	mux.Handle(esconnect.NewESServiceHandler(newServer()))
+	mux.Handle(distributedconnect.NewESServiceHandler(newServer()))
 
 	slog.Info("starting server...", "port", port)
 	err := http.ListenAndServe(":"+strconv.Itoa(port), h2c.NewHandler(mux, new(http2.Server)))
