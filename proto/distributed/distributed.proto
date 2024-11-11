@@ -20,7 +20,8 @@ message HeartbeatResponse {
 
 message DoneRequest {
   int32 id = 1;
-  bytes reward_batch = 2;
+  Slice slice = 2;
+  repeated bytes rewards = 3;
 }
 
 message DoneResponse {}
@@ -32,13 +33,6 @@ message SendStateRequest {
 
 message SendStateResponse {}
 
-message SendWandbRunRequest {
-  int32 id = 1;
-  bytes wandb_run = 2;
-}
-
-message SendWandbRunResponse {}
-
 enum ServerEventType {
   UNKNOWN = 0;
   SEND_STATE = 1;
@@ -49,7 +43,11 @@ enum ServerEventType {
 }
 
 message SubscribeRequest {
+  // number of CPUs available on the node
   int32 num_cpus = 1;
+
+  // number of population to be evaluated
+  int32 num_pop = 2;
 }
 
 message SendStateEvent {}
@@ -60,7 +58,7 @@ message EvaluateBatchEvent {
 
 message OptimStepEvent {
   bool logging = 1;
-  repeated bytes rewards = 2;
+  repeated bytes rewards = 2; // n_pop floats 
 }
 
 message HelloEvent {
