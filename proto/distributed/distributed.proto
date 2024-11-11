@@ -76,17 +76,15 @@ message EvaluateBatchEvent {
   Slice pop_slice = 1;
 }
 
-message StateUpdateEvent {
-  bytes new_state = 1;
-}
-
 message OptimStepEvent {
-  repeated bytes rewards = 1;
+  bool logging = 1;
+  repeated bytes rewards = 2;
 }
 
 message HelloEvent {
   int32 id = 1;
   bytes init_state = 2;
+  optional bytes wandb_run = 3;
 }
 
 
