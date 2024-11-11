@@ -60,7 +60,6 @@ type workerPool struct {
 // newWorkerPool creates a new worker pool.
 func newWorkerPool() *workerPool {
 	return &workerPool{
-		nextID:  1,
 		workers: make(map[uint8]*worker),
 		nextID:  1,
 	}
@@ -75,6 +74,17 @@ func (wp *workerPool) add(w *worker) (id uint8) {
 	wp.workers[id] = w
 	wp.nextID++
 
+func (wp *workerPool) len() (l int) {
+	wp.read(func(workers map[uint8]*worker) { l = len(workers) })
+	return l
+}
+
+func (wp *workerPool) add(w *worker) (id uint8) {
+	wp.write(func(workers map[uint8]*worker) {
+		id = wp.nextID
+		workers[id] = w
+		wp.nextID++
+	})
 	return id
 }
 
