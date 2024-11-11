@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 
@@ -8,13 +9,16 @@ import (
 )
 
 type worker struct {
-	joinedAt      time.Time
+	joinedAt time.Time
+
 	lastHeartBeat time.Time
+	ping          time.Duration
 
 	numCPUs uint8
 	rewards []byte
 
-	events chan *distributed.SubscribeResponse
+	events     chan *distributed.SubscribeResponse
+	disconnect chan struct{}
 }
 
 func newWorker(numCPUs uint8) *worker {
@@ -23,6 +27,7 @@ func newWorker(numCPUs uint8) *worker {
 		lastHeartBeat: time.Now(),
 		numCPUs:       numCPUs,
 		events:        make(chan *distributed.SubscribeResponse, 15),
+		disconnect:    make(chan struct{}, 1),
 	}
 }
 
@@ -55,6 +60,11 @@ func (wp *workerPool) remove(id uint8) {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
+	w, ok := wp.workers[id]
+	if !ok {
+		return
+	}
+	w.disconnect <- struct{}{}
 	delete(wp.workers, id)
 }
 
@@ -103,15 +113,21 @@ func (wp *workerPool) rewards() [][]byte {
 	return rewards
 }
 
-func (wp *workerPool) random() *worker { // TODO: use most trustworthy (ping)
+func (wp *workerPool) trusted(not uint8) (uint8, *worker) {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
 
-	var w *worker
-	for _, w = range wp.workers {
-		break
+	var (
+		trustedID uint8
+		trusted   *worker
+	)
+	for id, w := range wp.workers {
+		if trusted == nil || w.ping < trusted.ping || id != not {
+			trustedID = id
+			trusted = w
+		}
 	}
-	return w
+	return trustedID, trusted
 }
 
 func (wp *workerPool) resetRewards() {
@@ -120,5 +136,18 @@ func (wp *workerPool) resetRewards() {
 
 	for _, w := range wp.workers {
 		w.rewards = nil
+	}
+}
+
+func (wp *workerPool) cleanTimeouts() {
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+
+	for id, w := range wp.workers {
+		if time.Since(w.lastHeartBeat) > time.Minute {
+			slog.Error("worker timed out", "worker_id", id)
+			w.disconnect <- struct{}{}
+			delete(wp.workers, id)
+		}
 	}
 }

@@ -24,9 +24,17 @@ type server struct {
 var _ distributedconnect.ESServiceHandler = (*server)(nil)
 
 func newServer() *server {
-	return &server{
+	s := &server{
 		workers:  newWorkerPool(),
 		hellosMu: new(sync.RWMutex),
+	}
+	go s.watch()
+	return s
+}
+
+func (s *server) watch() {
+	for range time.Tick(time.Minute) {
+		s.workers.cleanTimeouts()
 	}
 }
 
@@ -76,6 +84,12 @@ func (s *server) Heartbeat(
 	}
 
 	w.lastHeartBeat = now
+	w.ping = time.Since(req.Msg.Timestamp.AsTime())
+
+	if w.ping > 1*time.Minute {
+		slog.Error("worker ping timeout", "worker_id", req.Msg.Id)
+		return nil, errors.New("heartbeat was too slow (>=1 minute)")
+	}
 
 	slog.Debug("acknowledged worker heartbeat", "worker_id", req.Msg.Id)
 	return connect.NewResponse(&distributed.HeartbeatResponse{Ok: true}), nil
@@ -136,6 +150,11 @@ func (s *server) Subscribe(
 					slog.Error("failed to send event", "err", err, "worker_id", id)
 				}
 				slog.Debug("sent event", "worker_id", id, "event", evt.Type.String())
+
+			case <-w.disconnect:
+				slog.Debug("received disconnect signal", "worker_id", id)
+				s.workers.remove(id)
+				break
 			}
 		}
 	}()
@@ -144,11 +163,27 @@ func (s *server) Subscribe(
 	s.hellos = append(s.hellos, w)
 	s.hellosMu.Unlock()
 
-	s.workers.random().events <- &distributed.SubscribeResponse{
-		Type: distributed.ServerEventType_SEND_STATE,
-		Event: &distributed.SubscribeResponse_SendState{
-			SendState: new(distributed.SendStateEvent),
-		},
+	trustedID, trusted := s.workers.trusted(id)
+	if trusted != nil {
+		slog.Debug("requesting state from trusted worker", "worker_id", id, "trusted_worker_id", trustedID)
+		trusted.events <- &distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_SEND_STATE,
+			Event: &distributed.SubscribeResponse_SendState{
+				SendState: new(distributed.SendStateEvent),
+			},
+		}
+	} else {
+		slog.Debug("no trusted worker found, sending hello directly", "worker_id", id)
+		evt := &distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_HELLO,
+			Event: &distributed.SubscribeResponse_Hello{
+				Hello: &distributed.HelloEvent{
+					Id:        int32(id),
+					InitState: nil,
+				},
+			},
+		}
+		w.events <- evt
 	}
 
 	slog.Debug("subscribed to worker events", "worker_id", id)
