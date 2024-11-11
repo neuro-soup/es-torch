@@ -59,6 +59,7 @@ type workerPool struct {
 // newWorkerPool creates a new worker pool.
 func newWorkerPool() *workerPool {
 	return &workerPool{
+		nextID:  1,
 		workers: make(map[uint8]*worker),
 		nextID:  1,
 	}
