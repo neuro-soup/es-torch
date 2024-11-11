@@ -95,8 +95,10 @@ func (wp *workerPool) rewards() [][]byte {
 	defer wp.mu.RUnlock()
 
 	rewards := make([][]byte, len(wp.workers))
-	for i, w := range wp.workers {
+	i := 0
+	for _, w := range wp.workers {
 		rewards[i] = w.rewards
+		i++
 	}
 	return rewards
 }
