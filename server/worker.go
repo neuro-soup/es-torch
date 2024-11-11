@@ -34,6 +34,7 @@ type workerPool struct {
 
 func newWorkerPool() *workerPool {
 	return &workerPool{
+		nextID:  1,
 		workers: make(map[uint8]*worker),
 		mu:      new(sync.RWMutex),
 	}
