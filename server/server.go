@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -66,7 +67,7 @@ func (s *server) Done(
 	w := s.workers.get(uint8(req.Msg.Id))
 	if w == nil {
 		slog.Error("worker not found", "worker_id", req.Msg.Id)
-		return nil, nil
+		return nil, errors.New("worker not found")
 	}
 
 	w.rewards = req.Msg.Reward
@@ -95,7 +96,7 @@ func (s *server) Heartbeat(
 	w := s.workers.get(uint8(req.Msg.Id))
 	if w == nil {
 		slog.Error("worker not found", "worker_id", req.Msg.Id)
-		return nil, nil
+		return nil, errors.New("worker not found")
 	}
 
 	w.lastHeartBeat = now
@@ -113,7 +114,7 @@ func (s *server) SendState(
 	w := s.workers.get(uint8(req.Msg.Id))
 	if w == nil {
 		slog.Error("worker not found", "worker_id", req.Msg.Id)
-		return nil, nil
+		return nil, errors.New("worker not found")
 	}
 
 	s.hellosMu.Lock()
@@ -128,7 +129,7 @@ func (s *server) SendState(
 	s.hellosMu.Unlock()
 
 	slog.Debug("sent state update to new workers", "worker_id", req.Msg.Id)
-	return nil, nil
+	return connect.NewResponse(&es.SendStateResponse{})
 }
 
 func (s *server) Subscribe(
@@ -141,7 +142,7 @@ func (s *server) Subscribe(
 	w := s.workers.get(uint8(req.Msg.Id))
 	if w == nil {
 		slog.Error("worker not found", "worker_id", req.Msg.Id)
-		return nil
+		return errors.New("worker not found")
 	}
 
 	go func() {
