@@ -59,10 +59,10 @@ message SubscribeResponse {
   repeated bytes optim_rewards = 2;
 
   // only for EVALUATE_BATCH
-  repeated Slice eval_pop_slices = 2;
+  repeated Slice eval_pop_slices = 3;
 
   // only for STATE_UPDATE
-  optional bytes update_state = 3;
+  optional bytes update_state = 4;
 }
 
 service ESService {
