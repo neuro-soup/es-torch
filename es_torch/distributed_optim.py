@@ -61,11 +61,11 @@ class Config:
 
 class ES:
     def __init__(
-            self,
-            config: Config,
-            params: Float[Tensor, "params"],
-            device: str,  # todo add to config?
-            rng_state: torch.ByteTensor | None = None,
+        self,
+        config: Config,
+        params: Float[Tensor, "params"],
+        device: str,  # todo add to config?
+        rng_state: torch.ByteTensor | None = None,
     ) -> None:
         self._cfg = config
         self._device = device
@@ -87,9 +87,7 @@ class ES:
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
         gradient = (
-                self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum(
-            "np,n->p", self._perturbed_params, rewards
-            )
+            self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
         )
         self.params += gradient - self._cfg.lr * self._cfg.weight_decay * self.params
 
