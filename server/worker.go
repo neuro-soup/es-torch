@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log/slog"
+	"iter"
 	"sync"
 	"time"
 
@@ -9,145 +9,124 @@ import (
 )
 
 type worker struct {
+	// numCPUs is the number of CPUs the worker has. This value corresponds to
+	// the width of the slices that are assigned to the worker.
+	numCPUs uint8
+
+	// joinedAt is the time the worker joined the experiment.
 	joinedAt time.Time
 
+	// lastHeartBeat is the time the worker last sent a heartbeat.
 	lastHeartBeat time.Time
-	ping          time.Duration
 
-	numCPUs uint8
-	rewards []byte
+	// ping is the time the worker took to send a heartbeat.
+	ping time.Duration
 
-	events     chan *distributed.SubscribeResponse
+	// events is the channel that sends worker events to the worker.
+	events chan *distributed.SubscribeResponse
+
+	// disconnect is the channel that disconnects the worker as soon as a signal
+	// is received.
 	disconnect chan struct{}
 }
 
+// newWorker creates a new worker.
 func newWorker(numCPUs uint8) *worker {
 	return &worker{
-		joinedAt:      time.Now(),
+		numCPUs:  numCPUs,
+		joinedAt: time.Now(),
+
 		lastHeartBeat: time.Now(),
-		numCPUs:       numCPUs,
-		events:        make(chan *distributed.SubscribeResponse, 15),
-		disconnect:    make(chan struct{}, 1),
+
+		events:     make(chan *distributed.SubscribeResponse, 15),
+		disconnect: make(chan struct{}, 1),
 	}
 }
 
+// workerPool is a pool of workers.
 type workerPool struct {
-	nextID  uint8
+	sync.RWMutex
+
+	// workers are the currently added workers.
 	workers map[uint8]*worker
-	mu      *sync.RWMutex
+
+	// nextID is the id that will be assigned to the next worker that is added.
+	nextID uint8
 }
 
+// newWorkerPool creates a new worker pool.
 func newWorkerPool() *workerPool {
 	return &workerPool{
-		nextID:  1,
 		workers: make(map[uint8]*worker),
-		mu:      new(sync.RWMutex),
+		nextID:  1,
 	}
 }
 
-func (wp *workerPool) add(w *worker) uint8 {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
+// add adds a worker to the pool.
+func (wp *workerPool) add(w *worker) (id uint8) {
+	wp.Lock()
+	defer wp.Unlock()
 
-	id := wp.nextID
+	id = wp.nextID
 	wp.workers[id] = w
 	wp.nextID++
 
 	return id
 }
 
+// remove removes the worker with the given ID.
 func (wp *workerPool) remove(id uint8) {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
+	wp.Lock()
+	defer wp.Unlock()
 
-	w, ok := wp.workers[id]
-	if !ok {
-		return
-	}
-	w.disconnect <- struct{}{}
 	delete(wp.workers, id)
 }
 
+// get returns the worker with the given ID.
 func (wp *workerPool) get(id uint8) *worker {
-	wp.mu.RLock()
-	defer wp.mu.RUnlock()
+	wp.RLock()
+	defer wp.RUnlock()
 
-	w, ok := wp.workers[id]
-	if !ok {
-		return nil
-	}
-	return w
+	return wp.workers[id]
 }
 
-func (wp *workerPool) done() bool {
-	wp.mu.RLock()
-	defer wp.mu.RUnlock()
+// iter returns an iterator over the workers in the pool. The pool is locked
+// during the iteration.
+func (wp *workerPool) iter() iter.Seq2[uint8, *worker] {
+	return func(yield func(uint8, *worker) bool) {
+		wp.Lock()
+		defer wp.Unlock()
 
-	for _, w := range wp.workers {
-		if w.rewards == nil {
-			return false
+		for id, w := range wp.workers {
+			if !yield(id, w) {
+				break
+			}
 		}
 	}
-	return true
 }
 
-func (wp *workerPool) broadcast(evt *distributed.SubscribeResponse) {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
+// slice returns a slice of all workers in the pool.
+func (wp *workerPool) slice() (sl []*worker) {
+	wp.RLock()
+	defer wp.RUnlock()
 
-	for _, w := range wp.workers {
-		w.events <- evt
-	}
-}
-
-func (wp *workerPool) rewards() [][]byte {
-	wp.mu.RLock()
-	defer wp.mu.RUnlock()
-
-	rewards := make([][]byte, len(wp.workers))
+	sl = make([]*worker, len(wp.workers))
 	i := 0
 	for _, w := range wp.workers {
-		rewards[i] = w.rewards
+		sl[i] = w
 		i++
 	}
-	return rewards
+	return sl
 }
 
-func (wp *workerPool) trusted(not uint8) (uint8, *worker) {
-	wp.mu.RLock()
-	defer wp.mu.RUnlock()
-
-	var (
-		trustedID uint8
-		trusted   *worker
-	)
-	for id, w := range wp.workers {
+// trusted returns the worker with the lowest ping time, excluding the worker
+// with the given ID.
+func (wp *workerPool) trusted(not uint8) (trustedID uint8, trusted *worker) {
+	for id, w := range wp.iter() {
 		if trusted == nil || w.ping < trusted.ping || id != not {
 			trustedID = id
 			trusted = w
 		}
 	}
 	return trustedID, trusted
-}
-
-func (wp *workerPool) resetRewards() {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
-
-	for _, w := range wp.workers {
-		w.rewards = nil
-	}
-}
-
-func (wp *workerPool) cleanTimeouts() {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
-
-	for id, w := range wp.workers {
-		if time.Since(w.lastHeartBeat) > time.Minute {
-			slog.Error("worker timed out", "worker_id", id)
-			w.disconnect <- struct{}{}
-			delete(wp.workers, id)
-		}
-	}
 }
