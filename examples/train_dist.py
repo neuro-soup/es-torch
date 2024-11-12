@@ -18,7 +18,7 @@ import wandb
 from google.protobuf import timestamp_pb2
 from gymnasium import VectorizeMode
 
-from es_torch.distrbuted_optim import Config as ESConfig, ES
+from es_torch.distributed_optim import Config as ESConfig, ES
 from es_torch.distributed import distributed_pb2 as proto, distributed_pb2_grpc as services
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
