@@ -7,6 +7,7 @@ import pickle
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from pprint import pprint
 from typing import Optional
 
 import grpc
@@ -81,6 +82,7 @@ class Worker:
         self.stub = services.ESServiceStub(self.channel)
         self.worker_id: int | None = None
         self.state: WorkerState | None = None
+        self._done = False
 
     async def run(self) -> None:
         heartbeat_task = asyncio.create_task(self._send_heartbeats())
@@ -92,7 +94,7 @@ class Worker:
             raise
 
     async def _send_heartbeats(self) -> None:
-        while True:
+        while not self._done:
             try:
                 timestamp = timestamp_pb2.Timestamp()
                 timestamp.FromDatetime(datetime.now())
@@ -119,6 +121,7 @@ class Worker:
             )
             for res in responses:  # loops indefinitely
                 if self.state.epoch >= self.config.epochs:
+                    self._done = True
                     break
                 response_fxns[res.type](res)  # noqa
             if self.state.wandb_run:
@@ -239,9 +242,10 @@ def main() -> None:
     # cfg.ckpt_path = Paths.CKPTS / filename
     # cfg.ckpt_every = args["ckpt"] or cfg.ckpt_every
     #
-    # pprint(cfg)
+    pprint(cfg)
 
     # final_params = train(cfg)
+    train(cfg)
 
     # model = SimpleMLP(cfg.policy)
     # torch.nn.utils.vector_to_parameters(final_params, model.parameters())
@@ -253,6 +257,17 @@ def main() -> None:
     # )
     # print(f"Saved final checkpoint to {fp}")
 
+
+# def save_final_checkpoint(model, model_config, fp):
+#     model = SimpleMLP(model_config)
+#     torch.nn.utils.vector_to_parameters(final_params, model.parameters())
+#     fp = cfg.ckpt_path.with_stem(cfg.ckpt_path.stem + "_final")
+#     save_policy(
+#         model=model,
+#         model_config=cfg.policy,
+#         fp=fp,
+#     )
+#     print(f"Saved final checkpoint to {fp}")
 
 if __name__ == "__main__":
     main()
