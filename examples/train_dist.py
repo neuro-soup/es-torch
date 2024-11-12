@@ -83,7 +83,8 @@ class Worker:
         self.stub = services.ESServiceStub(self.channel)
         self.worker_id: int | None = None
         self.state: WorkerState | None = None
-        self._done = False
+        self._done: bool = False
+        self._npop: int | None = None
 
     async def run(self) -> None:
         heartbeat_task = asyncio.create_task(self._send_heartbeats())
@@ -108,10 +109,7 @@ class Worker:
             try:
                 timestamp = timestamp_pb2.Timestamp()
                 timestamp.FromDatetime(datetime.now())
-                await self.stub.Heartbeat(proto.HeartbeatRequest(
-                    id=self.worker_id,
-                    timestamp=timestamp
-                ))
+                await self.stub.Heartbeat(proto.HeartbeatRequest(id=self.worker_id, timestamp=timestamp))
                 await asyncio.sleep(5)
             except Exception as e:
                 print(f"Heartbeat error: {e} on worker {self.worker_id}")
@@ -125,16 +123,19 @@ class Worker:
                 proto.ServerEventType.OPTIM_STEP: self._handle_optim_step,
                 proto.ServerEventType.SEND_STATE: self._handle_send_state,
             }
-            num_cpus = multiprocessing.cpu_count()
-            responses = self.stub.Subscribe(proto.SubscribeRequest(
-                num_cpus=num_cpus,
-                num_pop=self.config.es.n_pop,
-            ))
+            self._npop = multiprocessing.cpu_count()
+            responses = self.stub.Subscribe(
+                proto.SubscribeRequest(
+                    num_cpus=self._npop,
+                    num_pop=self.config.es.n_pop,
+                )
+            )
             async for res in responses:
+                print(f"Received {res.type} event")
                 if self.state and self.state.epoch >= self.config.epochs:
                     self._done = True
                     break
-                await response_fxns[res.type](getattr(res, res.WhichOneof('event'))) # noqa # nevermind the getattr stuff
+                await response_fxns[res.type](getattr(res, res.WhichOneof("event")))  # noqa # nvm the getattr stuff
 
             if self.state and self.state.wandb_run:
                 self.state.wandb_run.finish()
@@ -144,6 +145,7 @@ class Worker:
             await asyncio.sleep(1)
 
     async def _handle_hello(self, res: proto.ServerEventType.HelloEvent) -> None:
+        print("Hello has been called")
         self.worker_id = res.id
         if not res.init_state:
             initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(self.config.policy).parameters())
@@ -163,16 +165,20 @@ class Worker:
         else:
             self.state = pickle.loads(res.init_state)
 
-    async def _handle_evaluate_batch(self, res: proto.EvaluateBatchEvent) -> None:
+    async def _handle_evaluate_batch(self, res: proto.ServerEventType.EvaluateBatchEvent) -> None:
         perturbed_params = self.state.optim.get_perturbed_params()
         policy_batch_slice = slice(res.pop_slice.start, res.pop_slice.end)
         rewards = self._evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
         print(
             f"(Worker {self.worker_id}): Epoch {self.state.epoch} | Slice [{res.pop_slice.start}:{res.pop_slice.end}] | Mean reward: {rewards.max()} | Max reward: {rewards.mean()}"
         )
-        await self.stub.Done(proto.DoneRequest(id=self.worker_id, batch_rewards=[bytes(r.item()) for r in rewards]))
+        await self.stub.Done(
+            proto.DoneRequest(
+                id=self.worker_id, slice=res.pop_slice, batch_rewards=[r.cpu().numpy().tobytes() for r in rewards]
+            )
+        )
 
-    async def _handle_optim_step(self, res: proto.OptimStepEvent) -> None:
+    async def _handle_optim_step(self, res: proto.ServerEventType.OptimStepEvent) -> None:
         rewards = torch.frombuffer(res.rewards, dtype=torch.float32).flatten().to(self.config.device)
         self.state.optim.step(rewards)
         self.state.epoch += 1
@@ -193,12 +199,12 @@ class Worker:
             model.save(fp)
             print(f"Saved checkpoint to {fp}")
 
-    async def _handle_send_state(self, res: proto.SendStateEvent) -> None:
+    async def _handle_send_state(self, res: proto.ServerEventType.SendStateEvent) -> None:
         # a new worker joins and needs the current state
         await self.stub.SendState(proto.SendStateRequest(self.worker_id, pickle.dumps(self.state)))
 
     def _evaluate_policy_batch(self, policy_params_batch: torch.Tensor) -> torch.Tensor:
-        env = gym.make_vec("Humanoid-v5", num_envs=self.config.es.n_pop, vectorization_mode=VectorizeMode.ASYNC)
+        env = gym.make_vec("Humanoid-v5", num_envs=self._npop, vectorization_mode=VectorizeMode.ASYNC)
 
         obs, _ = env.reset(seed=self.config.env_seed)
         dones = np.zeros(env.num_envs, dtype=bool)
@@ -285,4 +291,5 @@ def main() -> None:
 #     print(f"Saved final checkpoint to {fp}")
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn")
     main()
