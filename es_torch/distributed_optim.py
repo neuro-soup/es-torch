@@ -60,15 +60,24 @@ class Config:
 
 
 class ES:
-    def __init__(self, config: Config, params: Float[Tensor, "params"], device: str) -> None:
+    def __init__(
+            self,
+            config: Config,
+            params: Float[Tensor, "params"],
+            device: str,  # todo add to config?
+            rng_state: torch.ByteTensor | None = None,
+    ) -> None:
         self._cfg = config
-        self._device = device  # TODO should we make ES part of nn.Module or torch optim?
+        self._device = device
         self.params = params.to(device)
+        self.generator = torch.Generator(device).manual_seed(config.seed)
+        if rng_state is not None:
+            self.generator.set_state(rng_state)
         self._get_noise = partial(
             SAMPLING_STRATEGIES[config.sampling_strategy],
             n_pop=config.n_pop,
             n_params=len(params),
-            generator=torch.Generator(device).manual_seed(config.seed),
+            generator=self.generator,
             device=device,
         )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]

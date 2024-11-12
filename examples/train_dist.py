@@ -18,7 +18,6 @@ import torch
 import wandb
 from google.protobuf import timestamp_pb2
 from gymnasium import VectorizeMode
-from sentry_sdk.utils import epoch
 
 from es_torch.distributed import distributed_pb2 as proto, distributed_pb2_grpc as services
 from es_torch.distributed_optim import Config as ESConfig, ES
@@ -72,20 +71,27 @@ class Config(ExperimentConfig):
 
 @dataclass
 class WorkerState:
+    """Used for transferring state to newly joined workers."""
+
     epoch: int
-    optim: ES
+    optim_params: torch.Tensor
+    optim_rng_state: torch.ByteTensor
     wandb_run: wandb.sdk.wandb_run.Run | None
 
 
 class Worker:
     def __init__(self, config: Config, server_address: str) -> None:
         self.config = config
+
         self.channel = grpc.aio.insecure_channel(server_address)
         self.stub = services.ESServiceStub(self.channel)
         self.worker_id: int | None = None
-        self.state: WorkerState | None = None
-        self._done: bool = False
-        self._npop: int | None = None
+        self.done: bool = False
+
+        self.optim: ES | None = None
+        self.epoch: int = 0
+        self.wandb_run: wandb.sdk.wandb_run.Run | None = None
+        self.npop: int | None = None
 
     async def run(self) -> None:
         heartbeat_task = asyncio.create_task(self._send_heartbeats())
@@ -99,7 +105,7 @@ class Worker:
             await self.channel.close()
 
     async def _send_heartbeats(self) -> None:
-        while not self._done:
+        while not self.done:
             if self.worker_id is None:
                 print("Waiting for worker ID...")
                 await asyncio.sleep(1)
@@ -121,22 +127,22 @@ class Worker:
                 proto.ServerEventType.OPTIM_STEP: self._handle_optim_step,
                 proto.ServerEventType.SEND_STATE: self._handle_send_state,
             }
-            self._npop = multiprocessing.cpu_count()
+            self.npop = multiprocessing.cpu_count()
             responses = self.stub.Subscribe(
                 proto.SubscribeRequest(
-                    num_cpus=self._npop,
+                    num_cpus=self.npop,
                     num_pop=self.config.es.n_pop,
                 )
             )
             async for res in responses:
                 print(f"Received {res.type} event")
-                if self.state and self.state.epoch >= self.config.epochs:
-                    self._done = True
+                if self.epoch >= self.config.epochs:
+                    self.done = True
                     break
                 await response_fxns[res.type](getattr(res, res.WhichOneof("event")))  # noqa # nvm the getattr stuff
 
-            if self.state and self.state.wandb_run:
-                self.state.wandb_run.finish()
+            if self.wandb_run:
+                self.wandb_run.finish()
         except Exception as e:
             print(f"Subscription error: {e}")
             traceback.print_exc()
@@ -147,8 +153,8 @@ class Worker:
         self.worker_id = res.id
         if not res.init_state:
             initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(self.config.policy).parameters())
-            optim = ES(self.config.es, params=initial_params, device=self.config.device)
-            run = (
+            self.optim = ES(self.config.es, params=initial_params, device=self.config.device)
+            self.wandb_run = (
                 wandb.init(
                     project=self.config.wandb.project,
                     name=self.config.wandb.name,
@@ -159,51 +165,63 @@ class Worker:
                 if self.config.wandb.enabled
                 else None
             )
-            self.state = WorkerState(epoch=0, optim=optim, wandb_run=run)
         else:
-            self.state = pickle.loads(res.init_state)
+            worker_state = pickle.loads(res.init_state)
+            rng_state = worker_state.optim_rng_state
+            self.optim = ES(
+                self.config.es, params=worker_state.optim_params, device=self.config.device, rng_state=rng_state
+            )
+            self.epoch = worker_state.epoch
+            self.wandb_run = worker_state.wandb_run
 
     async def _handle_evaluate_batch(self, res: proto.ServerEventType.EvaluateBatchEvent) -> None:
-        perturbed_params = self.state.optim.get_perturbed_params()
+        perturbed_params = self.optim.get_perturbed_params()
         policy_batch_slice = slice(res.pop_slice.start, res.pop_slice.end)
         rewards = self._evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
         print(
-            f"(Worker {self.worker_id}): Epoch {self.state.epoch} | Slice [{res.pop_slice.start}:{res.pop_slice.end}] | Mean reward: {rewards.max()} | Max reward: {rewards.mean()}"
+            f"(Worker {self.worker_id}): Epoch {self.epoch} | Slice [{res.pop_slice.start}:{res.pop_slice.end}] | Mean reward: {rewards.max()} | Max reward: {rewards.mean()}"
         )
         await self.stub.Done(
             proto.DoneRequest(
-                id=self.worker_id, slice=res.pop_slice,
-                batch_rewards=[r.cpu().numpy().astype(np.float32).tobytes() for r in rewards]
+                id=self.worker_id,
+                slice=res.pop_slice,
+                batch_rewards=[r.cpu().numpy().astype(np.float32).tobytes() for r in rewards],
             )
         )
 
     async def _handle_optim_step(self, res: proto.ServerEventType.OptimStepEvent) -> None:
-        rewards = torch.tensor([torch.frombuffer(r, dtype=torch.float32) for r in res.rewards], device=self.config.device)
-        self.state.optim.step(rewards)
-        self.state.epoch += 1
+        rewards = torch.tensor(
+            [torch.frombuffer(r, dtype=torch.float32) for r in res.rewards], device=self.config.device
+        )
+        self.optim.step(rewards)
+        self.epoch += 1
         mean_reward, max_reward = rewards.mean(), rewards.max()
-        print(f"Epoch {self.state.epoch}/{self.config.epochs}: Mean reward: {mean_reward} | Max reward: {max_reward}")
-        if self.state.wandb_run and res.logging:  # one dedicated worker logs to wandb
-            self.state.wandb_run.log(
+        print(f"Epoch {self.epoch}/{self.config.epochs}: Mean reward: {mean_reward} | Max reward: {max_reward}")
+        if self.wandb_run and res.logging:  # one dedicated worker logs to wandb
+            self.wandb_run.log(
                 {
-                    "epoch": self.state.epoch,
+                    "epoch": self.epoch,
                     "mean_reward": mean_reward,
                     "max_reward": max_reward,
                 }
             )
-        if self.config.ckpt_every > 0 and self.state.epoch % self.config.ckpt_every == 0:
+        if self.config.ckpt_every > 0 and self.epoch % self.config.ckpt_every == 0:
             model = SimpleMLP(self.config.policy)
-            torch.nn.utils.vector_to_parameters(self.state.optim.params, model.parameters())
-            fp = Path(f"{self.config.ckpt_path}_epoch_{self.state.epoch}")
+            torch.nn.utils.vector_to_parameters(self.optim.params, model.parameters())
+            fp = Path(f"{self.config.ckpt_path}_epoch_{self.epoch}")
             model.save(fp)
             print(f"Saved checkpoint to {fp}")
 
     async def _handle_send_state(self, res: proto.ServerEventType.SendStateEvent) -> None:
         # a new worker joins and needs the current state
-        await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(self.state)))
+        worker_state = WorkerState(
+            epoch=self.epoch, optim_params=self.optim.params, optim_rng_state=self.optim.generator.get_state(),
+            wandb_run=self.wandb_run,
+        )
+        await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(worker_state)))
 
     def _evaluate_policy_batch(self, policy_params_batch: torch.Tensor) -> torch.Tensor:
-        env = gym.make_vec("Humanoid-v5", num_envs=self._npop, vectorization_mode=VectorizeMode.ASYNC)
+        env = gym.make_vec("Humanoid-v5", num_envs=self.npop, vectorization_mode=VectorizeMode.ASYNC)
 
         obs, _ = env.reset(seed=self.config.env_seed)
         dones = np.zeros(env.num_envs, dtype=bool)
