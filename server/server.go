@@ -69,7 +69,7 @@ func newServer() *server {
 func (s *server) watch() {
 	for range time.Tick(watchInterval) {
 		for id, w := range s.workers.iter() {
-			if time.Since(w.lastHeartBeat) > heartbeatTimeout {
+			if !w.lastHeartBeat.IsZero() && time.Since(w.lastHeartBeat) > heartbeatTimeout {
 				slog.Error("worker timed out", "worker_id", id)
 				s.disconnect(id, w)
 			}

@@ -36,8 +36,6 @@ func newWorker(numCPUs uint8) *worker {
 		numCPUs:  numCPUs,
 		joinedAt: time.Now(),
 
-		lastHeartBeat: time.Now(),
-
 		events:     make(chan *distributed.SubscribeResponse, 15),
 		disconnect: make(chan struct{}, 1),
 	}

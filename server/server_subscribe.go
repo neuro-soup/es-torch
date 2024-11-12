@@ -67,6 +67,8 @@ func (s *server) Subscribe(
 				},
 			}
 			return nil
+		} else {
+			slog.Debug("no slices available for new worker", "worker_id", id)
 		}
 	}
 
@@ -103,6 +105,8 @@ func (s *server) validateSubscription(req *connect.Request[distributed.Subscribe
 // handleFirstSubscription initializes the server state when the first
 // worker subscribes to the server.
 func (s *server) handleFirstSubscription(req *connect.Request[distributed.SubscribeRequest]) {
+	slog.Debug("handling first subscription", "num_pop", req.Msg.NumPop)
+
 	s.params.Lock()
 	defer s.params.Unlock()
 	s.params.initialized = true

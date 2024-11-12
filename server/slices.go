@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -22,6 +24,14 @@ func newSlices(numPop uint32) *slices {
 	sl := new(slices)
 	sl.reset(numPop)
 	return sl
+}
+
+func (s *slices) String() string {
+	var sb strings.Builder
+	for _, sl := range s.slices {
+		sb.WriteString(fmt.Sprintf("slice %d-%d (assigned to %v)\n", sl.start, sl.end, sl.worker))
+	}
+	return fmt.Sprintf("slices: %d\n", len(s.slices)) + sb.String()
 }
 
 func (s *slices) reset(numPop uint32) {
@@ -84,9 +94,11 @@ func (s *slices) assign(w *worker) *slice {
 			end:   sl.end + diff - uint32(w.numCPUs),
 		}
 
-		// place newSl directly after sl
-		copy(s.slices[i+1:], s.slices[i:])
-		s.slices[i] = newSl
+		right := s.slices[i+1:]
+		s.slices = append(s.slices[:i+1], newSl)
+		s.slices = append(s.slices, right...)
+
+		return sl
 	}
 
 	return nil
