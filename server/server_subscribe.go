@@ -66,7 +66,6 @@ func (s *server) Subscribe(
 					},
 				},
 			}
-			return nil
 		} else {
 			slog.Debug("no slices available for new worker", "worker_id", id)
 		}
@@ -83,6 +82,7 @@ func (s *server) Subscribe(
 
 		case evt := <-w.events:
 			// send event to client
+			slog.Debug("sending event", "worker_id", id, "event", evt.Type.String())
 			if err := stream.Send(evt); err != nil {
 				slog.Error("failed to send event", "err", err, "worker_id", id)
 				s.clean(id, w)

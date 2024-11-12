@@ -61,8 +61,8 @@ func (s *slices) find(start, end uint32) *slice {
 }
 
 func (s *slices) assign(w *worker) *slice {
-	s.Lock()
-	defer s.Unlock()
+	// s.Lock()
+	// defer s.Unlock()
 
 	// TODO: optimise for non-contiguous slices (array of slices)
 
@@ -71,7 +71,6 @@ func (s *slices) assign(w *worker) *slice {
 			// ignore slices assigned to other workers
 			continue
 		}
-
 		if sl.rewards != nil {
 			// ignore slices with rewards
 			continue
