@@ -50,7 +50,7 @@ type server struct {
 
 	// hellos are the workers that have sent their first hello requests and
 	// are waiting for their state to be sent.
-	hellos   []*worker
+	hellos   map[uint8]*worker
 	hellosMu sync.RWMutex
 }
 
@@ -61,6 +61,7 @@ func newServer() *server {
 	s := &server{
 		workers: newWorkerPool(),
 		params:  new(params),
+		hellos:  make(map[uint8]*worker),
 	}
 	go s.watch()
 	return s

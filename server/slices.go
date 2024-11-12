@@ -30,7 +30,11 @@ func newSlices(numPop uint32) *slices {
 func (s *slices) String() string {
 	var sb strings.Builder
 	for _, sl := range s.slices {
-		sb.WriteString(fmt.Sprintf("slice %d-%d (assigned to %v)\n", sl.start, sl.end, sl.worker))
+		if sl.worker != nil {
+			sb.WriteString(fmt.Sprintf("slice %d-%d (assigned)\n", sl.start, sl.end))
+		} else {
+			sb.WriteString(fmt.Sprintf("slice %d-%d (unassigned)\n", sl.start, sl.end))
+		}
 	}
 	return fmt.Sprintf("slices: %d\n", len(s.slices)) + sb.String()
 }
@@ -70,10 +74,10 @@ func (s *slices) assign(id uint8, w *worker) *slice {
 	slog.Debug("assigning slice to worker...", "num_cpus", w.numCPUs, "worker_id", id)
 
 	fmt.Println("\nBefore assignment:")
-	fmt.Println(s, "\n")
+	fmt.Println(s)
 	defer func() {
 		fmt.Println("\nAfter assignment:")
-		fmt.Println(s, "\n")
+		fmt.Println(s)
 	}()
 
 	for i, sl := range s.slices {
