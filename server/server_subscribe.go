@@ -53,7 +53,7 @@ func (s *server) Subscribe(
 			},
 		}
 
-		if next := s.slices.assign(w); next != nil {
+		if next := s.slices.assign(id, w); next != nil {
 			slog.Debug("sending worker next batch", "worker_id", id, "slice", next)
 			w.events <- &distributed.SubscribeResponse{
 				Type: distributed.ServerEventType_EVALUATE_BATCH,

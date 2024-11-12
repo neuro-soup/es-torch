@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 )
@@ -60,11 +61,20 @@ func (s *slices) find(start, end uint32) *slice {
 	return nil
 }
 
-func (s *slices) assign(w *worker) *slice {
-	// s.Lock()
-	// defer s.Unlock()
+func (s *slices) assign(id uint8, w *worker) *slice {
+	s.Lock()
+	defer s.Unlock()
 
 	// TODO: optimise for non-contiguous slices (array of slices)
+
+	slog.Debug("assigning slice to worker...", "num_cpus", w.numCPUs, "worker_id", id)
+
+	fmt.Println("\nBefore assignment:")
+	fmt.Println(s, "\n")
+	defer func() {
+		fmt.Println("\nAfter assignment:")
+		fmt.Println(s, "\n")
+	}()
 
 	for i, sl := range s.slices {
 		if sl.worker != nil {

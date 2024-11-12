@@ -26,7 +26,7 @@ func (s *server) Done(
 	}
 	prev.rewards = req.Msg.BatchRewards
 
-	if next := s.slices.assign(w); next != nil {
+	if next := s.slices.assign(uint8(req.Msg.Id), w); next != nil {
 		slog.Debug("sending worker next batch", "worker_id", req.Msg.Id, "slice", next)
 		w.events <- &distributed.SubscribeResponse{
 			Type: distributed.ServerEventType_EVALUATE_BATCH,
@@ -58,8 +58,8 @@ func (s *server) Done(
 		s.params.RLock()
 		s.slices.reset(s.params.numPop)
 		s.params.RUnlock()
-		for _, w := range s.workers.iter() {
-			sl := s.slices.assign(w)
+		for id, w := range s.workers.iter() {
+			sl := s.slices.assign(id, w)
 			if sl == nil {
 				continue
 			}

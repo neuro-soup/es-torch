@@ -23,7 +23,7 @@ func (s *server) SendState(
 
 	s.hellosMu.Lock()
 	for id, hello := range s.hellos {
-		evt := &distributed.SubscribeResponse{
+		hello.events <- &distributed.SubscribeResponse{
 			Type: distributed.ServerEventType_HELLO,
 			Event: &distributed.SubscribeResponse_Hello{
 				Hello: &distributed.HelloEvent{
@@ -32,11 +32,10 @@ func (s *server) SendState(
 				},
 			},
 		}
-		hello.events <- evt
 
-		if next := s.slices.assign(hello); next != nil {
+		if next := s.slices.assign(uint8(id), hello); next != nil {
 			slog.Debug("sending worker next batch", "worker_id", id, "slice", next)
-			w.events <- &distributed.SubscribeResponse{
+			hello.events <- &distributed.SubscribeResponse{
 				Type: distributed.ServerEventType_EVALUATE_BATCH,
 				Event: &distributed.SubscribeResponse_EvaluateBatch{
 					EvaluateBatch: &distributed.EvaluateBatchEvent{
