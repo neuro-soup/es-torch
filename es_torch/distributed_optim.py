@@ -62,7 +62,7 @@ class Config:
 class ES:
     def __init__(self, config: Config, params: Float[Tensor, "params"]) -> None:
         self._cfg = config
-        self.params = params.unsqueeze(0)
+        self.params = params
         self._get_noise = partial(
             SAMPLING_STRATEGIES[config.sampling_strategy],
             config.n_pop,
@@ -85,6 +85,3 @@ class ES:
         noise = self._get_noise()
         self._perturbed_params = self.params.unsqueeze(0) + self._cfg.std * noise
         return self._perturbed_params.squeeze()
-
-    def get_params(self) -> Float[Tensor, "params"]:
-        return self.params.squeeze()
