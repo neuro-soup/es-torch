@@ -98,20 +98,20 @@ outer:
 		case <-ctx.Done():
 			// client-side cancellation
 			slog.Debug("received cancel signal", "worker_id", id)
-			s.disconnect(id, w)
+			s.clean(id, w)
 			break outer
 
 		case <-w.disconnect:
 			// server-side cancellation
 			slog.Debug("received disconnect signal", "worker_id", id)
-			s.disconnect(id, w)
+			s.clean(id, w)
 			break outer
 
 		case evt := <-w.events:
 			// send event to client
 			if err := stream.Send(evt); err != nil {
 				slog.Error("failed to send event", "err", err, "worker_id", id)
-				s.disconnect(id, w)
+				s.clean(id, w)
 				break outer
 			}
 			slog.Debug("sent event", "worker_id", id, "event", evt.Type.String())

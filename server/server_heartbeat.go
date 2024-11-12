@@ -29,7 +29,7 @@ func (s *server) Heartbeat(
 	if w.ping > heartbeatTimeout {
 		// disconnect worker if the heartbeat was transmitted more than 1 minute ago
 		slog.Error("worker ping timeout", "worker_id", req.Msg.Id)
-		s.disconnect(uint8(req.Msg.Id), w)
+		s.clean(uint8(req.Msg.Id), w)
 		return nil, errors.New("heartbeat was too slow (>=1 minute ago)")
 	}
 
