@@ -77,12 +77,16 @@ func (s *server) watch() {
 	}
 }
 
+func (s *server) clean(id uint8, w *worker) {
+	s.workers.remove(id)
+	s.slices.free(w)
+}
+
 // disconnect disconnects a worker from the server and removes it from the
 // worker pool.
 func (s *server) disconnect(id uint8, w *worker) {
 	slog.Debug("disconnecting worker", "worker_id", id)
 
 	w.disconnect <- struct{}{}
-	s.workers.remove(id)
-	s.slices.free(w)
+	s.clean(id, w)
 }
