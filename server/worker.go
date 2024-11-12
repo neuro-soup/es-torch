@@ -121,7 +121,7 @@ func (wp *workerPool) slice() (sl []*worker) {
 // with the given ID.
 func (wp *workerPool) trusted(not uint8) (trustedID uint8, trusted *worker) {
 	for id, w := range wp.iter() {
-		if (trusted == nil || w.ping < trusted.ping) && id != not {
+		if !w.lastHeartBeat.IsZero() && (trusted == nil || w.ping < trusted.ping) && id != not {
 			trustedID = id
 			trusted = w
 		}
