@@ -54,10 +54,28 @@ func (s *server) Done(
 					},
 				},
 			}
-			s.params.RLock()
-			s.slices.reset(s.params.numPop)
-			s.params.RUnlock()
 		}
+		s.params.RLock()
+		s.slices.reset(s.params.numPop)
+		s.params.RUnlock()
+		for _, w := range s.workers.iter() {
+			sl := s.slices.assign(w)
+			if sl == nil {
+				continue
+			}
+			w.events <- &distributed.SubscribeResponse{
+				Type: distributed.ServerEventType_EVALUATE_BATCH,
+				Event: &distributed.SubscribeResponse_EvaluateBatch{
+					EvaluateBatch: &distributed.EvaluateBatchEvent{
+						PopSlice: &distributed.Slice{
+							Start: int32(sl.start),
+							End:   int32(sl.end),
+						},
+					},
+				},
+			}
+		}
+
 		return connect.NewResponse(&distributed.DoneResponse{}), nil
 	}
 
