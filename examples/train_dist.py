@@ -99,9 +99,6 @@ class Worker:
 
     async def _send_heartbeats(self) -> None:
         while not self._done:
-            print("worker_id", self.worker_id)
-            print("state", self.state)
-            print("done", self._done)
             if self.worker_id is None:
                 print("Waiting for worker ID...")
                 await asyncio.sleep(1)
@@ -110,7 +107,7 @@ class Worker:
                 timestamp = timestamp_pb2.Timestamp()
                 timestamp.FromDatetime(datetime.now())
                 await self.stub.Heartbeat(proto.HeartbeatRequest(id=self.worker_id, timestamp=timestamp))
-                await asyncio.sleep(5)
+                await asyncio.sleep(10)
             except Exception as e:
                 print(f"Heartbeat error: {e} on worker {self.worker_id}")
                 await asyncio.sleep(1)
