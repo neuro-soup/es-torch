@@ -73,7 +73,7 @@ message HelloEvent {
 message SendStateEvent {}
 
 message EvaluateBatchEvent {
-  Slice pop_slice = 1;
+  Slice pop_slice = 1; // TODO: repeated slice
 }
 
 message OptimStepEvent {

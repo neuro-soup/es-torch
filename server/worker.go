@@ -20,7 +20,6 @@ type worker struct {
 
 	// lastHeartBeat is the time the worker last sent a heartbeat.
 	lastHeartBeat time.Time
-	ping          time.Duration
 
 	// ping is the time the worker took to send a heartbeat.
 	ping time.Duration
@@ -80,11 +79,13 @@ func (wp *workerPool) len() (l int) {
 }
 
 func (wp *workerPool) add(w *worker) (id uint8) {
-	wp.write(func(workers map[uint8]*worker) {
-		id = wp.nextID
-		workers[id] = w
-		wp.nextID++
-	})
+	wp.Lock()
+	defer wp.Unlock()
+
+	id = wp.nextID
+	wp.workers[id] = w
+	wp.nextID++
+
 	return id
 }
 
