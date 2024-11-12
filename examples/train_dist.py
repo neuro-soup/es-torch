@@ -229,10 +229,10 @@ class Worker:
         return torch.tensor(total_rewards, device=self.config.device)
 
 
-def train(config: Config) -> None:
+def train(config: Config, server: str) -> None:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    worker = Worker(config, server_address=config.server)
+    worker = Worker(config, server_address=server)
     try:
         loop.run_until_complete(worker.run())
     except KeyboardInterrupt:
@@ -263,7 +263,7 @@ def main() -> None:
     pprint(cfg)
 
     # final_params = train(cfg)
-    train(cfg)
+    train(cfg, server=args["server"])
 
     # model = SimpleMLP(cfg.policy)
     # torch.nn.utils.vector_to_parameters(final_params, model.parameters())
