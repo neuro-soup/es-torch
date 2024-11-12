@@ -8,6 +8,16 @@ import (
 	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed/distributedconnect"
 )
 
+const (
+	// watchInterval is the interval at which the server watches for workers
+	// that have not sent a heartbeat.
+	watchInterval = time.Minute
+
+	// heartbeatTimeout is the duration after which a worker is disconnected if
+	// it hasn't sent a heartbeat.
+	heartbeatTimeout = time.Minute
+)
+
 type params struct {
 	sync.RWMutex
 
@@ -17,6 +27,12 @@ type params struct {
 
 	// numPop is the number of population to be evaluated.
 	numPop uint32
+}
+
+func (p *params) isInitialized() bool {
+	p.RLock()
+	defer p.RUnlock()
+	return p.initialized
 }
 
 type server struct {
@@ -34,11 +50,6 @@ type server struct {
 	// are waiting for their state to be sent.
 	hellos   []*worker
 	hellosMu sync.RWMutex
-
-	// rewards are the rewards received from each worker, where `[]byte` is the
-	// encoded reward (most likely a tensor).
-	rewards   [][]byte
-	rewardsMu sync.RWMutex
 }
 
 var _ distributedconnect.ESServiceHandler = (*server)(nil)
@@ -47,7 +58,6 @@ var _ distributedconnect.ESServiceHandler = (*server)(nil)
 func newServer() *server {
 	s := &server{
 		workers: newWorkerPool(),
-		slices:  new(slices),
 		params:  new(params),
 	}
 	go s.watch()
@@ -57,9 +67,9 @@ func newServer() *server {
 // watch loops every minute and disconnects workers that have not sent a heartbeat
 // within a minute.
 func (s *server) watch() {
-	for range time.Tick(time.Minute) {
+	for range time.Tick(watchInterval) {
 		for id, w := range s.workers.iter() {
-			if time.Since(w.lastHeartBeat) > time.Minute {
+			if time.Since(w.lastHeartBeat) > heartbeatTimeout {
 				slog.Error("worker timed out", "worker_id", id)
 				s.disconnect(id, w)
 			}
@@ -67,8 +77,12 @@ func (s *server) watch() {
 	}
 }
 
-// disconnect disconnects a worker from the server.
+// disconnect disconnects a worker from the server and removes it from the
+// worker pool.
 func (s *server) disconnect(id uint8, w *worker) {
+	slog.Debug("disconnecting worker", "worker_id", id)
+
 	w.disconnect <- struct{}{}
 	s.workers.remove(id)
+	s.slices.free(w)
 }

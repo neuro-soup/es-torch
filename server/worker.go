@@ -9,16 +9,28 @@ import (
 )
 
 type worker struct {
-	numCPUs  uint8
+	// numCPUs is the number of CPUs the worker has. This value corresponds to
+	// the width of the slices that are assigned to the worker.
+	numCPUs uint8
+
+	// joinedAt is the time the worker joined the experiment.
 	joinedAt time.Time
 
+	// lastHeartBeat is the time the worker last sent a heartbeat.
 	lastHeartBeat time.Time
-	ping          time.Duration
 
-	events     chan *distributed.SubscribeResponse
+	// ping is the time the worker took to send a heartbeat.
+	ping time.Duration
+
+	// events is the channel that sends worker events to the worker.
+	events chan *distributed.SubscribeResponse
+
+	// disconnect is the channel that disconnects the worker as soon as a signal
+	// is received.
 	disconnect chan struct{}
 }
 
+// newWorker creates a new worker.
 func newWorker(numCPUs uint8) *worker {
 	return &worker{
 		numCPUs:  numCPUs,
@@ -31,63 +43,59 @@ func newWorker(numCPUs uint8) *worker {
 	}
 }
 
+// workerPool is a pool of workers.
 type workerPool struct {
+	sync.RWMutex
+
+	// workers are the currently added workers.
 	workers map[uint8]*worker
-	nextID  uint8
-	mu      *sync.RWMutex
+
+	// nextID is the id that will be assigned to the next worker that is added.
+	nextID uint8
 }
 
+// newWorkerPool creates a new worker pool.
 func newWorkerPool() *workerPool {
 	return &workerPool{
 		workers: make(map[uint8]*worker),
 		nextID:  1,
-		mu:      new(sync.RWMutex),
 	}
 }
 
-func (wp *workerPool) read(fn func(workers map[uint8]*worker)) {
-	wp.mu.RLock()
-	defer wp.mu.RUnlock()
-
-	fn(wp.workers)
-}
-
-func (wp *workerPool) write(fn func(workers map[uint8]*worker)) {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
-
-	fn(wp.workers)
-}
-
-func (wp *workerPool) len() (l int) {
-	wp.read(func(workers map[uint8]*worker) { l = len(workers) })
-	return l
-}
-
+// add adds a worker to the pool.
 func (wp *workerPool) add(w *worker) (id uint8) {
-	wp.write(func(workers map[uint8]*worker) {
-		id = wp.nextID
-		workers[id] = w
-		wp.nextID++
-	})
+	wp.Lock()
+	defer wp.Unlock()
+
+	id = wp.nextID
+	wp.workers[id] = w
+	wp.nextID++
+
 	return id
 }
 
+// remove removes the worker with the given ID.
 func (wp *workerPool) remove(id uint8) {
-	wp.write(func(workers map[uint8]*worker) {
-		delete(wp.workers, id)
-	})
+	wp.Lock()
+	defer wp.Unlock()
+
+	delete(wp.workers, id)
 }
 
-func (wp *workerPool) get(id uint8) (found *worker) {
-	wp.read(func(workers map[uint8]*worker) { found = wp.workers[id] })
-	return found
+// get returns the worker with the given ID.
+func (wp *workerPool) get(id uint8) *worker {
+	wp.RLock()
+	defer wp.RUnlock()
+
+	return wp.workers[id]
 }
 
+// iter returns an iterator over the workers in the pool. The pool is locked
+// during the iteration.
 func (wp *workerPool) iter() iter.Seq2[uint8, *worker] {
 	return func(yield func(uint8, *worker) bool) {
-		wp.mu.Lock()
-		defer wp.mu.Unlock()
+		wp.Lock()
+		defer wp.Unlock()
 
 		for id, w := range wp.workers {
 			if !yield(id, w) {
@@ -97,18 +105,22 @@ func (wp *workerPool) iter() iter.Seq2[uint8, *worker] {
 	}
 }
 
+// slice returns a slice of all workers in the pool.
 func (wp *workerPool) slice() (sl []*worker) {
-	wp.read(func(workers map[uint8]*worker) {
-		sl = make([]*worker, len(workers))
-		i := 0
-		for _, w := range workers {
-			sl[i] = w
-			i++
-		}
-	})
+	wp.RLock()
+	defer wp.RUnlock()
+
+	sl = make([]*worker, len(wp.workers))
+	i := 0
+	for _, w := range wp.workers {
+		sl[i] = w
+		i++
+	}
 	return sl
 }
 
+// trusted returns the worker with the lowest ping time, excluding the worker
+// with the given ID.
 func (wp *workerPool) trusted(not uint8) (trustedID uint8, trusted *worker) {
 	for id, w := range wp.iter() {
 		if trusted == nil || w.ping < trusted.ping || id != not {

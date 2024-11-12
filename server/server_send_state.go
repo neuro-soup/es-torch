@@ -33,6 +33,21 @@ func (s *server) SendState(
 			},
 		}
 		hello.events <- evt
+
+		if next := s.slices.assign(hello); next != nil {
+			slog.Debug("sending worker next batch", "worker_id", id, "slice", next)
+			w.events <- &distributed.SubscribeResponse{
+				Type: distributed.ServerEventType_EVALUATE_BATCH,
+				Event: &distributed.SubscribeResponse_EvaluateBatch{
+					EvaluateBatch: &distributed.EvaluateBatchEvent{
+						PopSlice: &distributed.Slice{
+							Start: int32(next.start),
+							End:   int32(next.end),
+						},
+					},
+				},
+			}
+		}
 	}
 	s.hellos = nil
 	s.hellosMu.Unlock()

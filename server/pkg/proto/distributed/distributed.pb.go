@@ -7,11 +7,12 @@
 package distributed
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
@@ -923,25 +924,27 @@ func file_distributed_distributed_proto_rawDescGZIP() []byte {
 	return file_distributed_distributed_proto_rawDescData
 }
 
-var file_distributed_distributed_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_distributed_distributed_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
-var file_distributed_distributed_proto_goTypes = []interface{}{
-	(ServerEventType)(0),          // 0: distributed.ServerEventType
-	(*Slice)(nil),                 // 1: distributed.Slice
-	(*HeartbeatRequest)(nil),      // 2: distributed.HeartbeatRequest
-	(*HeartbeatResponse)(nil),     // 3: distributed.HeartbeatResponse
-	(*DoneRequest)(nil),           // 4: distributed.DoneRequest
-	(*DoneResponse)(nil),          // 5: distributed.DoneResponse
-	(*SendStateRequest)(nil),      // 6: distributed.SendStateRequest
-	(*SendStateResponse)(nil),     // 7: distributed.SendStateResponse
-	(*SubscribeRequest)(nil),      // 8: distributed.SubscribeRequest
-	(*SendStateEvent)(nil),        // 9: distributed.SendStateEvent
-	(*EvaluateBatchEvent)(nil),    // 10: distributed.EvaluateBatchEvent
-	(*OptimStepEvent)(nil),        // 11: distributed.OptimStepEvent
-	(*HelloEvent)(nil),            // 12: distributed.HelloEvent
-	(*SubscribeResponse)(nil),     // 13: distributed.SubscribeResponse
-	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
-}
+var (
+	file_distributed_distributed_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+	file_distributed_distributed_proto_msgTypes  = make([]protoimpl.MessageInfo, 13)
+	file_distributed_distributed_proto_goTypes   = []interface{}{
+		(ServerEventType)(0),          // 0: distributed.ServerEventType
+		(*Slice)(nil),                 // 1: distributed.Slice
+		(*HeartbeatRequest)(nil),      // 2: distributed.HeartbeatRequest
+		(*HeartbeatResponse)(nil),     // 3: distributed.HeartbeatResponse
+		(*DoneRequest)(nil),           // 4: distributed.DoneRequest
+		(*DoneResponse)(nil),          // 5: distributed.DoneResponse
+		(*SendStateRequest)(nil),      // 6: distributed.SendStateRequest
+		(*SendStateResponse)(nil),     // 7: distributed.SendStateResponse
+		(*SubscribeRequest)(nil),      // 8: distributed.SubscribeRequest
+		(*SendStateEvent)(nil),        // 9: distributed.SendStateEvent
+		(*EvaluateBatchEvent)(nil),    // 10: distributed.EvaluateBatchEvent
+		(*OptimStepEvent)(nil),        // 11: distributed.OptimStepEvent
+		(*HelloEvent)(nil),            // 12: distributed.HelloEvent
+		(*SubscribeResponse)(nil),     // 13: distributed.SubscribeResponse
+		(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
+	}
+)
 var file_distributed_distributed_proto_depIdxs = []int32{
 	14, // 0: distributed.HeartbeatRequest.timestamp:type_name -> google.protobuf.Timestamp
 	1,  // 1: distributed.DoneRequest.slice:type_name -> distributed.Slice

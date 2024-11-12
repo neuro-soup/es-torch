@@ -16,7 +16,7 @@ func (s *server) Subscribe(
 ) error {
 	slog.Debug("received subscribe request", "num_cpus", req.Msg.NumCpus)
 
-	if !s.params.initialized {
+	if !s.params.isInitialized() {
 		s.handleFirstSubscription(req)
 	}
 
@@ -30,12 +30,12 @@ func (s *server) Subscribe(
 
 	go s.streamWorkerEvents(ctx, stream, id, w)
 
-	s.hellosMu.Lock()
-	s.hellos = append(s.hellos, w)
-	s.hellosMu.Unlock()
-
 	trustedID, trusted := s.workers.trusted(id)
 	if trusted != nil {
+		s.hellosMu.Lock()
+		s.hellos = append(s.hellos, w)
+		s.hellosMu.Unlock()
+
 		// requesting state from trusted worker
 		slog.Debug("requesting state from trusted worker", "worker_id", id, "trusted_worker_id", trustedID)
 		trusted.events <- &distributed.SubscribeResponse{
@@ -48,16 +48,28 @@ func (s *server) Subscribe(
 		// first subscription or no trusted worker found, sending hello directly
 		// without initial state
 		slog.Debug("no trusted worker found, sending hello directly", "worker_id", id)
-		evt := &distributed.SubscribeResponse{
+		w.events <- &distributed.SubscribeResponse{
 			Type: distributed.ServerEventType_HELLO,
 			Event: &distributed.SubscribeResponse_Hello{
-				Hello: &distributed.HelloEvent{
-					Id:        int32(id),
-					InitState: nil,
-				},
+				Hello: &distributed.HelloEvent{Id: int32(id)},
 			},
 		}
-		w.events <- evt
+
+		if next := s.slices.assign(w); next != nil {
+			slog.Debug("sending worker next batch", "worker_id", id, "slice", next)
+			w.events <- &distributed.SubscribeResponse{
+				Type: distributed.ServerEventType_EVALUATE_BATCH,
+				Event: &distributed.SubscribeResponse_EvaluateBatch{
+					EvaluateBatch: &distributed.EvaluateBatchEvent{
+						PopSlice: &distributed.Slice{
+							Start: int32(next.start),
+							End:   int32(next.end),
+						},
+					},
+				},
+			}
+			return nil
+		}
 	}
 
 	slog.Debug("subscribed to worker events", "worker_id", id)
@@ -83,18 +95,23 @@ func (s *server) streamWorkerEvents(
 	for {
 		select {
 		case <-ctx.Done():
+			// client-side cancellation
 			slog.Debug("received cancel signal", "worker_id", id)
 			s.disconnect(id, w)
 			break
 
 		case <-w.disconnect:
+			// server-side cancellation
 			slog.Debug("received disconnect signal", "worker_id", id)
 			s.disconnect(id, w)
 			break
 
-		case evt := <-w.events: // TODO: satisfy govet
+		case evt := <-w.events:
+			// send event to client
 			if err := stream.Send(evt); err != nil {
 				slog.Error("failed to send event", "err", err, "worker_id", id)
+				s.disconnect(id, w)
+				break
 			}
 			slog.Debug("sent event", "worker_id", id, "event", evt.Type.String())
 		}
@@ -110,8 +127,5 @@ func (s *server) handleFirstSubscription(req *connect.Request[distributed.Subscr
 	defer s.params.Unlock()
 	s.params.initialized = true
 	s.params.numPop = uint32(req.Msg.NumPop)
-
-	s.rewardsMu.Lock()
-	defer s.rewardsMu.Unlock()
-	s.rewards = make([][]byte, req.Msg.NumPop)
+	s.slices = newSlices(uint32(req.Msg.NumPop))
 }

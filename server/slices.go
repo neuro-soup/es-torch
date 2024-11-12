@@ -1,56 +1,132 @@
 package main
 
 import (
-	"sort"
 	"sync"
 )
 
 type slice struct {
-	start  uint32
-	end    uint32
-	worker *worker
+	start   uint32
+	end     uint32
+	worker  *worker
+	rewards [][]byte
 }
 
 type slices struct {
 	sync.RWMutex
 
-	// assignments are the slices allocated to each worker. Each worker can have
-	// multiple slices assigned to it, which they process sequentially.
-	assignments []slice
-
-	// inconsistent is true if one or more workers left or joined the
-	// experiment during the current epoch.
-	inconsistent bool
+	numPop uint32
+	slices []*slice
 }
 
-// assign assigns batch slices to each worker. One worker can have multiple
-// slices assigned to it, which they process sequentially. Each worker slice
-// has a slice width of maximum `numCPUs` of the worker.
-func (s *slices) assign(numPop uint32, pool *workerPool) {
+func newSlices(numPop uint32) *slices {
+	sl := new(slices)
+	sl.reset(numPop)
+	return sl
+}
+
+func (s *slices) reset(numPop uint32) {
 	s.Lock()
 	defer s.Unlock()
 
-	workers := pool.slice()
-	sort.Slice(workers, func(i, j int) bool {
-		// sort by number of CPUs (descending)
-		return workers[i].numCPUs > workers[j].numCPUs
-	})
+	s.numPop = numPop
+	s.slices = []*slice{
+		{
+			start: uint32(0),
+			end:   uint32(numPop),
+		},
+	}
+}
 
-	// reset slices
-	s.assignments = nil
+func (s *slices) find(start, end uint32) *slice {
+	s.Lock()
+	defer s.Unlock()
 
-	offset := uint32(0)
-	remaining := numPop
-	for remaining > 0 {
-		for _, w := range workers {
-			width := min(uint32(w.numCPUs), remaining)
-			s.assignments = append(s.assignments, slice{
-				start:  uint32(offset),
-				end:    uint32(offset) + width,
-				worker: w,
-			})
-			offset += width
-			remaining -= width
+	for _, sl := range s.slices {
+		if sl.start == start && sl.end == end {
+			return sl
 		}
 	}
+
+	return nil
+}
+
+func (s *slices) assign(w *worker) *slice {
+	s.Lock()
+	defer s.Unlock()
+
+	// TODO: optimise for non-contiguous slices (array of slices)
+
+	for i, sl := range s.slices {
+		if sl.worker != nil {
+			// ignore slices assigned to other workers
+			continue
+		}
+
+		if sl.rewards != nil {
+			// ignore slices with rewards
+			continue
+		}
+
+		// claim slice to worker
+		sl.worker = w
+
+		diff := sl.end - sl.start
+		if diff <= uint32(w.numCPUs) {
+			// claim existing slice fits on worker's CPUs
+			return sl
+		}
+
+		// split slice into multiple slices
+		sl.end = sl.start + uint32(w.numCPUs)
+
+		newSl := &slice{
+			start: sl.end,
+			end:   sl.end + diff - uint32(w.numCPUs),
+		}
+
+		// place newSl directly after sl
+		copy(s.slices[i+1:], s.slices[i:])
+		s.slices[i] = newSl
+	}
+
+	return nil
+}
+
+func (s *slices) free(w *worker) {
+	s.Lock()
+	defer s.Unlock()
+
+	for _, sl := range s.slices {
+		if sl.worker == w {
+			// free slice
+			sl.worker = nil
+		}
+	}
+}
+
+func (s *slices) isEpochDone() bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	for _, sl := range s.slices {
+		if sl.worker == nil || sl.rewards == nil {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *slices) rewards() [][]byte {
+	s.RLock()
+	defer s.RUnlock()
+
+	rewards := make([][]byte, s.numPop)
+	i := 0
+	for _, sl := range s.slices {
+		for _, reward := range sl.rewards {
+			rewards[i] = reward
+			i++
+		}
+	}
+	return rewards
 }
