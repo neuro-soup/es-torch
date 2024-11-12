@@ -130,6 +130,7 @@ class Worker:
                 proto.SubscribeRequest(
                     num_cpus=multiprocessing.cpu_count(),
                     num_pop=self.config.es.n_pop,
+                    device=self.config.device,
                 )
             )
             async for res in responses:
@@ -214,8 +215,8 @@ class Worker:
         # a new worker joins and needs the current state
         worker_state = WorkerState(
             epoch=self.epoch,
-            optim_params=self.optim.params,
-            optim_rng_state=self.optim.generator.get_state(),
+            optim_params=self.optim.params.to(res.device),
+            optim_rng_state=self.optim.generator.get_state().to(res.device),
             wandb_run=self.wandb_run,
         )
         await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(worker_state)))
