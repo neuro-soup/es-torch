@@ -232,7 +232,7 @@ class Worker:
 def train(config: Config) -> None:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    worker = Worker(config, server_address="localhost:8080")
+    worker = Worker(config, server_address=config.server)
     try:
         loop.run_until_complete(worker.run())
     except KeyboardInterrupt:
