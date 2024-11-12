@@ -95,6 +95,9 @@ class Worker:
 
     async def _send_heartbeats(self) -> None:
         while not self._done:
+            if self.worker_id is None:
+                await asyncio.sleep(1)
+                continue
             try:
                 timestamp = timestamp_pb2.Timestamp()
                 timestamp.FromDatetime(datetime.now())
@@ -227,7 +230,7 @@ def main() -> None:
     parser.add_argument("--max_episode_steps", type=int, help="Max steps per episode")
     parser.add_argument("--hid", type=int, help="Hidden layer size")
     parser.add_argument("--ckpt", type=int, help="Save every N epochs. N<=0 disables saving")
-    parser.add_argument("--server_ip", type=str, help="IP address of the server", default="localhost:8080")
+    parser.add_argument("--server", type=str, help="IP address of the server", default="localhost:8080")
     ESArgumentHandler.add_args(parser)
     WandbArgumentHandler.add_args(parser)
     args = vars(parser.parse_args())
