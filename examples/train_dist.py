@@ -150,17 +150,18 @@ class Worker:
     def _handle_evaluate_batch(self, res: proto.EvaluateBatchEvent) -> None:
         perturbed_params = self.state.optim.get_perturbed_params()
         policy_batch_slice = slice(res.pop_slice.start, res.pop_slice.end)
-        results = self._evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
-        self.stub.Done(proto.DoneRequest(id=self.worker_id, batch_rewards=[bytes(r.item()) for r in results]))
+        rewards = self._evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
+        print(
+            f"(Worker {self.worker_id}): Epoch {self.state.epoch} | Slice [{res.pop_slice.start}:{res.pop_slice.end}] | Mean reward: {rewards.max()} | Max reward: {rewards.mean()}"
+        )
+        self.stub.Done(proto.DoneRequest(id=self.worker_id, batch_rewards=[bytes(r.item()) for r in rewards]))
 
     def _handle_optim_step(self, res: proto.OptimStepEvent) -> None:
         rewards = torch.frombuffer(res.rewards, dtype=torch.float32).flatten().to(self.config.device)
         self.state.optim.step(rewards)
         self.state.epoch += 1
         mean_reward, max_reward = rewards.mean(), rewards.max()
-        print(
-            f"(Worker {self.worker_id}): Epoch {self.state.epoch} | Mean reward: {mean_reward} | Max reward: {max_reward}"
-        )
+        print(f"Epoch {self.state.epoch} | Mean reward: {mean_reward} | Max reward: {max_reward}")
         if self.state.wandb_run and res.logging:  # one dedicated worker logs to wandb
             self.state.wandb_run.log(
                 {
