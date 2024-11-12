@@ -3,7 +3,7 @@
 }:
 
 pkgs.mkShell rec {
-  packages = with pkgs; [
+  buildInputs = with pkgs; [
     go_1_23
     gopls
     gotools
@@ -19,6 +19,7 @@ pkgs.mkShell rec {
 
     openssl
 
+    gcc
     zlib
     glib
     stdenv.cc.cc
@@ -54,9 +55,13 @@ pkgs.mkShell rec {
     ncurses5
     stdenv.cc
     binutils
+    wayland
+    qt5.full
+    libsForQt5.qt5.qtwayland
   ];
 
   shellHook = ''
-    export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath packages}
+    export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath buildInputs}:${pkgs.stdenv.cc.cc.lib}/lib/lib:${pkgs.ncurses5}/lib
+    export EXTRA_CCFLAGS="-I/usr/include"
   '';
 }
