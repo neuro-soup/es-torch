@@ -11,11 +11,11 @@ import (
 const (
 	// watchInterval is the interval at which the server watches for workers
 	// that have not sent a heartbeat.
-	watchInterval = time.Minute
+	watchInterval = 10 * time.Second
 
 	// heartbeatTimeout is the duration after which a worker is disconnected if
 	// it hasn't sent a heartbeat.
-	heartbeatTimeout = time.Minute
+	heartbeatTimeout = 10 * time.Second
 )
 
 type params struct {

@@ -80,12 +80,6 @@ func (s *server) Subscribe(
 			break
 
 		case evt := <-w.events:
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("worker panicked while sending event", "worker_id", id, "err", r, "event", evt.Type.String())
-					s.clean(id, w)
-				}
-			}()
 			// send event to client
 			if err := stream.Send(evt); err != nil {
 				slog.Error("failed to send event", "err", err, "worker_id", id)
