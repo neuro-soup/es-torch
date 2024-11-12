@@ -291,5 +291,5 @@ def main() -> None:
 #     print(f"Saved final checkpoint to {fp}")
 
 if __name__ == "__main__":
-    multiprocessing.set_start_method("spawn")
+    multiprocessing.set_start_method("spawn")  # necessary
     main()
