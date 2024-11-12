@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import multiprocessing
 import pickle
+import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -18,8 +19,8 @@ import wandb
 from google.protobuf import timestamp_pb2
 from gymnasium import VectorizeMode
 
-from es_torch.distributed_optim import Config as ESConfig, ES
 from es_torch.distributed import distributed_pb2 as proto, distributed_pb2_grpc as services
+from es_torch.distributed_optim import Config as ESConfig, ES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
@@ -78,7 +79,7 @@ class WorkerState:
 class Worker:
     def __init__(self, config: Config, server_address: str) -> None:
         self.config = config
-        self.channel = grpc.insecure_channel(server_address)
+        self.channel = grpc.aio.insecure_channel(server_address)
         self.stub = services.ESServiceStub(self.channel)
         self.worker_id: int | None = None
         self.state: WorkerState | None = None
@@ -92,17 +93,26 @@ class Worker:
         except Exception as e:
             print(f"Worker error: {e}")
             raise
+        finally:
+            await self.channel.close()
 
     async def _send_heartbeats(self) -> None:
         while not self._done:
+            print("worker_id", self.worker_id)
+            print("state", self.state)
+            print("done", self._done)
             if self.worker_id is None:
+                print("Waiting for worker ID...")
                 await asyncio.sleep(1)
                 continue
             try:
                 timestamp = timestamp_pb2.Timestamp()
                 timestamp.FromDatetime(datetime.now())
-                self.stub.Heartbeat(proto.HeartbeatRequest(id=self.worker_id, timestamp=timestamp))
-                await asyncio.sleep(10)
+                await self.stub.Heartbeat(proto.HeartbeatRequest(
+                    id=self.worker_id,
+                    timestamp=timestamp
+                ))
+                await asyncio.sleep(5)
             except Exception as e:
                 print(f"Heartbeat error: {e} on worker {self.worker_id}")
                 await asyncio.sleep(1)
@@ -116,26 +126,26 @@ class Worker:
                 proto.ServerEventType.SEND_STATE: self._handle_send_state,
             }
             num_cpus = multiprocessing.cpu_count()
-            responses = self.stub.Subscribe(
-                proto.SubscribeRequest(
-                    num_cpus=num_cpus,
-                    num_pop=self.config.es.n_pop,
-                )
-            )
-            for res in responses:  # loops indefinitely
-                if self.state.epoch >= self.config.epochs:
+            responses = self.stub.Subscribe(proto.SubscribeRequest(
+                num_cpus=num_cpus,
+                num_pop=self.config.es.n_pop,
+            ))
+            async for res in responses:
+                if self.state and self.state.epoch >= self.config.epochs:
                     self._done = True
                     break
-                response_fxns[res.type](res)  # noqa
-            if self.state.wandb_run:
+                await response_fxns[res.type](getattr(res, res.WhichOneof('event'))) # noqa # nevermind the getattr stuff
+
+            if self.state and self.state.wandb_run:
                 self.state.wandb_run.finish()
         except Exception as e:
             print(f"Subscription error: {e}")
+            traceback.print_exc()
             await asyncio.sleep(1)
 
-    def _handle_hello(self, res: proto.ServerEventType.HELLO) -> None:
+    async def _handle_hello(self, res: proto.ServerEventType.HelloEvent) -> None:
         self.worker_id = res.id
-        if res.init_state is None:
+        if not res.init_state:
             initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(self.config.policy).parameters())
             optim = ES(self.config.es, params=initial_params)
             run = (
@@ -153,16 +163,16 @@ class Worker:
         else:
             self.state = pickle.loads(res.init_state)
 
-    def _handle_evaluate_batch(self, res: proto.EvaluateBatchEvent) -> None:
+    async def _handle_evaluate_batch(self, res: proto.EvaluateBatchEvent) -> None:
         perturbed_params = self.state.optim.get_perturbed_params()
         policy_batch_slice = slice(res.pop_slice.start, res.pop_slice.end)
         rewards = self._evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
         print(
             f"(Worker {self.worker_id}): Epoch {self.state.epoch} | Slice [{res.pop_slice.start}:{res.pop_slice.end}] | Mean reward: {rewards.max()} | Max reward: {rewards.mean()}"
         )
-        self.stub.Done(proto.DoneRequest(id=self.worker_id, batch_rewards=[bytes(r.item()) for r in rewards]))
+        await self.stub.Done(proto.DoneRequest(id=self.worker_id, batch_rewards=[bytes(r.item()) for r in rewards]))
 
-    def _handle_optim_step(self, res: proto.OptimStepEvent) -> None:
+    async def _handle_optim_step(self, res: proto.OptimStepEvent) -> None:
         rewards = torch.frombuffer(res.rewards, dtype=torch.float32).flatten().to(self.config.device)
         self.state.optim.step(rewards)
         self.state.epoch += 1
@@ -183,9 +193,9 @@ class Worker:
             model.save(fp)
             print(f"Saved checkpoint to {fp}")
 
-    def _handle_send_state(self, res: proto.SendStateEvent) -> None:
+    async def _handle_send_state(self, res: proto.SendStateEvent) -> None:
         # a new worker joins and needs the current state
-        self.stub.SendState(proto.SendStateRequest(self.worker_id, pickle.dumps(self.state)))
+        await self.stub.SendState(proto.SendStateRequest(self.worker_id, pickle.dumps(self.state)))
 
     def _evaluate_policy_batch(self, policy_params_batch: torch.Tensor) -> torch.Tensor:
         env = gym.make_vec("Humanoid-v5", num_envs=self.config.es.n_pop, vectorization_mode=VectorizeMode.ASYNC)
@@ -216,10 +226,12 @@ class Worker:
         return torch.tensor(total_rewards, device=self.config.device)
 
 
-def train(config: Config):
+def train(config: Config) -> None:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     worker = Worker(config, server_address="localhost:8080")
     try:
-        asyncio.run(worker.run())
+        loop.run_until_complete(worker.run())
     except KeyboardInterrupt:
         print("Training interrupted")
 
