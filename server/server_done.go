@@ -26,21 +26,21 @@ func (s *server) Done(
 	}
 	prev.rewards = req.Msg.BatchRewards
 
-	// if next := s.slices.assign(w); next != nil {
-	// 	slog.Debug("sending worker next batch", "worker_id", req.Msg.Id, "slice", next)
-	// 	w.events <- &distributed.SubscribeResponse{
-	// 		Type: distributed.ServerEventType_EVALUATE_BATCH,
-	// 		Event: &distributed.SubscribeResponse_EvaluateBatch{
-	// 			EvaluateBatch: &distributed.EvaluateBatchEvent{
-	// 				PopSlice: &distributed.Slice{
-	// 					Start: int32(next.start),
-	// 					End:   int32(next.end),
-	// 				},
-	// 			},
-	// 		},
-	// 	}
-	// 	return connect.NewResponse(&distributed.DoneResponse{}), nil
-	// }
+	if next := s.slices.assign(w); next != nil {
+		slog.Debug("sending worker next batch", "worker_id", req.Msg.Id, "slice", next)
+		w.events <- &distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_EVALUATE_BATCH,
+			Event: &distributed.SubscribeResponse_EvaluateBatch{
+				EvaluateBatch: &distributed.EvaluateBatchEvent{
+					PopSlice: &distributed.Slice{
+						Start: int32(next.start),
+						End:   int32(next.end),
+					},
+				},
+			},
+		}
+		return connect.NewResponse(&distributed.DoneResponse{}), nil
+	}
 
 	if s.slices.isEpochDone() {
 		rewards := s.slices.rewards()
