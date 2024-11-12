@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 )
@@ -29,7 +30,11 @@ func newSlices(numPop uint32) *slices {
 func (s *slices) String() string {
 	var sb strings.Builder
 	for _, sl := range s.slices {
-		sb.WriteString(fmt.Sprintf("slice %d-%d (assigned to %v)\n", sl.start, sl.end, sl.worker))
+		if sl.worker != nil {
+			sb.WriteString(fmt.Sprintf("slice %d-%d (assigned)\n", sl.start, sl.end))
+		} else {
+			sb.WriteString(fmt.Sprintf("slice %d-%d (unassigned)\n", sl.start, sl.end))
+		}
 	}
 	return fmt.Sprintf("slices: %d\n", len(s.slices)) + sb.String()
 }
@@ -60,11 +65,20 @@ func (s *slices) find(start, end uint32) *slice {
 	return nil
 }
 
-func (s *slices) assign(w *worker) *slice {
-	// s.Lock()
-	// defer s.Unlock()
+func (s *slices) assign(id uint8, w *worker) *slice {
+	s.Lock()
+	defer s.Unlock()
 
 	// TODO: optimise for non-contiguous slices (array of slices)
+
+	slog.Debug("assigning slice to worker...", "num_cpus", w.numCPUs, "worker_id", id)
+
+	fmt.Println("\nBefore assignment:")
+	fmt.Println(s)
+	defer func() {
+		fmt.Println("\nAfter assignment:")
+		fmt.Println(s)
+	}()
 
 	for i, sl := range s.slices {
 		if sl.worker != nil {

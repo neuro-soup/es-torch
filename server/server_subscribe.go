@@ -31,7 +31,7 @@ func (s *server) Subscribe(
 	trustedID, trusted := s.workers.trusted(id)
 	if trusted != nil {
 		s.hellosMu.Lock()
-		s.hellos = append(s.hellos, w)
+		s.hellos[id] = w
 		s.hellosMu.Unlock()
 
 		// requesting state from trusted worker
@@ -49,11 +49,13 @@ func (s *server) Subscribe(
 		w.events <- &distributed.SubscribeResponse{
 			Type: distributed.ServerEventType_HELLO,
 			Event: &distributed.SubscribeResponse_Hello{
-				Hello: &distributed.HelloEvent{Id: int32(id)},
+				Hello: &distributed.HelloEvent{
+					Id: int32(id),
+				},
 			},
 		}
 
-		if next := s.slices.assign(w); next != nil {
+		if next := s.slices.assign(id, w); next != nil {
 			slog.Debug("sending worker next batch", "worker_id", id, "slice", next)
 			w.events <- &distributed.SubscribeResponse{
 				Type: distributed.ServerEventType_EVALUATE_BATCH,
