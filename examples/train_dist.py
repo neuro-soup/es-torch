@@ -165,7 +165,7 @@ class Worker:
             )
         else:
             worker_state = pickle.loads(res.init_state)
-            rng_state = worker_state.optim_rng_state
+            rng_state = worker_state.optim_rng_state.to(self.config.device)
             self.optim = ES(
                 self.config.es, params=worker_state.optim_params, device=self.config.device, rng_state=rng_state
             )
@@ -213,7 +213,9 @@ class Worker:
     async def _handle_send_state(self, res: proto.ServerEventType.SendStateEvent) -> None:
         # a new worker joins and needs the current state
         worker_state = WorkerState(
-            epoch=self.epoch, optim_params=self.optim.params, optim_rng_state=self.optim.generator.get_state(),
+            epoch=self.epoch,
+            optim_params=self.optim.params,
+            optim_rng_state=self.optim.generator.get_state(),
             wandb_run=self.wandb_run,
         )
         await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(worker_state)))
