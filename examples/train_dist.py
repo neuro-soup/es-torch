@@ -91,7 +91,6 @@ class Worker:
         self.optim: ES | None = None
         self.epoch: int = 0
         self.wandb_run: wandb.sdk.wandb_run.Run | None = None
-        self.npop: int | None = None
 
     async def run(self) -> None:
         heartbeat_task = asyncio.create_task(self._send_heartbeats())
@@ -127,10 +126,9 @@ class Worker:
                 proto.ServerEventType.OPTIM_STEP: self._handle_optim_step,
                 proto.ServerEventType.SEND_STATE: self._handle_send_state,
             }
-            self.npop = multiprocessing.cpu_count()
             responses = self.stub.Subscribe(
                 proto.SubscribeRequest(
-                    num_cpus=self.npop,
+                    num_cpus=multiprocessing.cpu_count(),
                     num_pop=self.config.es.n_pop,
                 )
             )
@@ -221,7 +219,8 @@ class Worker:
         await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(worker_state)))
 
     def _evaluate_policy_batch(self, policy_params_batch: torch.Tensor) -> torch.Tensor:
-        env = gym.make_vec("Humanoid-v5", num_envs=self.npop, vectorization_mode=VectorizeMode.ASYNC)
+        npop = policy_params_batch.size(0)
+        env = gym.make_vec("Humanoid-v5", num_envs=npop, vectorization_mode=VectorizeMode.ASYNC)
 
         obs, _ = env.reset(seed=self.config.env_seed)
         dones = np.zeros(env.num_envs, dtype=bool)
