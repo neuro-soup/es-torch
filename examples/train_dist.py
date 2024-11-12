@@ -198,7 +198,7 @@ class Worker:
 
     async def _handle_send_state(self, res: proto.ServerEventType.SendStateEvent) -> None:
         # a new worker joins and needs the current state
-        await self.stub.SendState(proto.SendStateRequest(self.worker_id, pickle.dumps(self.state)))
+        await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(self.state)))
 
     def _evaluate_policy_batch(self, policy_params_batch: torch.Tensor) -> torch.Tensor:
         env = gym.make_vec("Humanoid-v5", num_envs=self._npop, vectorization_mode=VectorizeMode.ASYNC)
