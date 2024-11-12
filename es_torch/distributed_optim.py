@@ -8,16 +8,16 @@ from torch import Tensor
 
 
 class Sampler(Protocol):
-    def __call__(self, n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor: ...
+    def __call__(self, n_pop: int, n_params: int, generator: torch.Generator, device: str) -> torch.Tensor: ...
 
 
-def get_antithetic_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
-    noise = torch.randn((n_pop // 2, n_params), generator=generator)
+def get_antithetic_noise(n_pop: int, n_params: int, generator: torch.Generator, device: str) -> torch.Tensor:
+    noise = torch.randn((n_pop // 2, n_params), generator=generator, device=device)
     return torch.cat([noise, -noise], dim=0)
 
 
-def get_normal_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
-    return torch.randn((n_pop, n_params), generator=generator)
+def get_normal_noise(n_pop: int, n_params: int, generator: torch.Generator, device: str) -> torch.Tensor:
+    return torch.randn((n_pop, n_params), generator=generator, device=device)
 
 
 type RewardTransform = Callable[[Float[Tensor, "npop"]], Float[Tensor, "npop"]]
@@ -60,14 +60,16 @@ class Config:
 
 
 class ES:
-    def __init__(self, config: Config, params: Float[Tensor, "params"]) -> None:
+    def __init__(self, config: Config, params: Float[Tensor, "params"], device: str) -> None:
         self._cfg = config
-        self.params = params
+        self._device = device  # TODO should we make ES part of nn.Module or torch optim?
+        self.params = params.to(device)
         self._get_noise = partial(
             SAMPLING_STRATEGIES[config.sampling_strategy],
-            config.n_pop,
-            len(params),
-            torch.Generator().manual_seed(config.seed),
+            n_pop=config.n_pop,
+            n_params=len(params),
+            generator=torch.Generator(device).manual_seed(config.seed),
+            device=device,
         )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
         self._perturbed_params: Float[Tensor, "npop params"] | None = None
@@ -76,7 +78,9 @@ class ES:
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
         gradient = (
-            self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
+                self._cfg.lr / (self._cfg.n_pop * self._cfg.std) * torch.einsum(
+            "np,n->p", self._perturbed_params, rewards
+            )
         )
         self.params += gradient - self._cfg.lr * self._cfg.weight_decay * self.params
 

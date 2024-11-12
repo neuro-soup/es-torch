@@ -18,6 +18,7 @@ import torch
 import wandb
 from google.protobuf import timestamp_pb2
 from gymnasium import VectorizeMode
+from sentry_sdk.utils import epoch
 
 from es_torch.distributed import distributed_pb2 as proto, distributed_pb2_grpc as services
 from es_torch.distributed_optim import Config as ESConfig, ES
@@ -146,7 +147,7 @@ class Worker:
         self.worker_id = res.id
         if not res.init_state:
             initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(self.config.policy).parameters())
-            optim = ES(self.config.es, params=initial_params)
+            optim = ES(self.config.es, params=initial_params, device=self.config.device)
             run = (
                 wandb.init(
                     project=self.config.wandb.project,
@@ -171,16 +172,17 @@ class Worker:
         )
         await self.stub.Done(
             proto.DoneRequest(
-                id=self.worker_id, slice=res.pop_slice, batch_rewards=[r.cpu().numpy().tobytes() for r in rewards]
+                id=self.worker_id, slice=res.pop_slice,
+                batch_rewards=[r.cpu().numpy().astype(np.float32).tobytes() for r in rewards]
             )
         )
 
     async def _handle_optim_step(self, res: proto.ServerEventType.OptimStepEvent) -> None:
-        rewards = torch.frombuffer(res.rewards, dtype=torch.float32).flatten().to(self.config.device)
+        rewards = torch.tensor([torch.frombuffer(r, dtype=torch.float32) for r in res.rewards], device=self.config.device)
         self.state.optim.step(rewards)
         self.state.epoch += 1
         mean_reward, max_reward = rewards.mean(), rewards.max()
-        print(f"Epoch {self.state.epoch} | Mean reward: {mean_reward} | Max reward: {max_reward}")
+        print(f"Epoch {self.state.epoch}/{self.config.epochs}: Mean reward: {mean_reward} | Max reward: {max_reward}")
         if self.state.wandb_run and res.logging:  # one dedicated worker logs to wandb
             self.state.wandb_run.log(
                 {
