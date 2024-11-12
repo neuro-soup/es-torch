@@ -28,8 +28,6 @@ func (s *server) Subscribe(
 	w := newWorker(uint8(req.Msg.NumCpus))
 	id := s.workers.add(w)
 
-	go s.streamWorkerEvents(ctx, stream, id, w)
-
 	trustedID, trusted := s.workers.trusted(id)
 	if trusted != nil {
 		s.hellosMu.Lock()
@@ -73,7 +71,30 @@ func (s *server) Subscribe(
 	}
 
 	slog.Debug("subscribed to worker events", "worker_id", id)
-	return nil
+	for {
+		select {
+		case <-w.disconnect:
+			// server-side cancellation
+			slog.Debug("received disconnect signal", "worker_id", id)
+			s.clean(id, w)
+			break
+
+		case evt := <-w.events:
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("worker panicked while sending event", "worker_id", id, "err", r, "event", evt.Type.String())
+					s.clean(id, w)
+				}
+			}()
+			// send event to client
+			if err := stream.Send(evt); err != nil {
+				slog.Error("failed to send event", "err", err, "worker_id", id)
+				s.clean(id, w)
+				break
+			}
+			slog.Debug("sent event", "worker_id", id, "event", evt.Type.String())
+		}
+	}
 }
 
 // validateSubscription validates the subscription request. Parameters, such asa
@@ -85,45 +106,9 @@ func (s *server) validateSubscription(req *connect.Request[distributed.Subscribe
 	return nil
 }
 
-// streamWorkerEvents streams worker events from the worker's event channel to
-// over the GRPC stream to the worker client.
-func (s *server) streamWorkerEvents(
-	ctx context.Context,
-	stream *connect.ServerStream[distributed.SubscribeResponse],
-	id uint8, w *worker,
-) {
-outer:
-	for {
-		select {
-		case <-ctx.Done():
-			// client-side cancellation
-			slog.Debug("received cancel signal", "worker_id", id)
-			s.clean(id, w)
-			break outer
-
-		case <-w.disconnect:
-			// server-side cancellation
-			slog.Debug("received disconnect signal", "worker_id", id)
-			s.clean(id, w)
-			break outer
-
-		case evt := <-w.events:
-			// send event to client
-			if err := stream.Send(evt); err != nil {
-				slog.Error("failed to send event", "err", err, "worker_id", id)
-				s.clean(id, w)
-				break outer
-			}
-			slog.Debug("sent event", "worker_id", id, "event", evt.Type.String())
-		}
-	}
-}
-
 // handleFirstSubscription initializes the server state when the first
 // worker subscribes to the server.
 func (s *server) handleFirstSubscription(req *connect.Request[distributed.SubscribeRequest]) {
-	slog.Debug("received subscribe request", "num_cpus", req.Msg.NumCpus)
-
 	s.params.Lock()
 	defer s.params.Unlock()
 	s.params.initialized = true
