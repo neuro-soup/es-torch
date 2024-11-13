@@ -48,7 +48,7 @@ func (s *server) SendState(
 			}
 		}
 	}
-	s.hellos = nil
+	clear(s.hellos)
 	s.hellosMu.Unlock()
 
 	slog.Debug("sent state update to new workers", "worker_id", req.Msg.Id)
