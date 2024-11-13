@@ -171,6 +171,7 @@ class Worker:
         else:
             worker_state: WorkerState = pickle.loads(res.init_state)
             rng_state = worker_state.optim_rng_state  # .to(self.config.device)
+            print(rng_state)
             self.optim = ES(
                 self.config.es, params=worker_state.optim_params, device=self.config.device, rng_state=rng_state
             )
@@ -223,7 +224,7 @@ class Worker:
         worker_state = WorkerState(
             epoch=self.epoch,
             optim_params=self.optim.params.to(res.device),
-            optim_rng_state=self.optim.generator.get_state().to(res.device),
+            optim_rng_state=self.optim.generator.get_state(),
             wandb_run_id=self.wandb_run.id,
         )
         await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(worker_state)))
