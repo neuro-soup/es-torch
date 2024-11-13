@@ -137,11 +137,11 @@ class Worker:
                 print(f"Received {res.type} event")
                 if self.epoch >= self.config.epochs:
                     self.done = True
+                    if self.wandb_run:
+                        self.wandb_run.finish()
                     break
                 await response_fxns[res.type](getattr(res, res.WhichOneof("event")))  # noqa # nvm the getattr stuff
 
-            if self.wandb_run:
-                self.wandb_run.finish()
         except Exception as e:
             print(f"Subscription error: {e}")
             traceback.print_exc()
@@ -197,6 +197,7 @@ class Worker:
         mean_reward, max_reward = rewards.mean(), rewards.max()
         print(f"Epoch {self.epoch}/{self.config.epochs}: Mean reward: {mean_reward} | Max reward: {max_reward}")
         if self.wandb_run and res.logging:  # one dedicated worker logs to wandb
+            print("Logging to wandb...")
             self.wandb_run.log(
                 {
                     "epoch": self.epoch,
