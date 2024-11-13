@@ -48,9 +48,13 @@ message SubscribeRequest {
 
   // number of population to be evaluated
   int32 num_pop = 2;
+
+  string device = 3;
 }
 
-message SendStateEvent {}
+message SendStateEvent {
+  string device = 1;
+}
 
 message EvaluateBatchEvent {
   Slice pop_slice = 1; // TODO: repeated slice

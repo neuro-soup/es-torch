@@ -25,7 +25,7 @@ func (s *server) Subscribe(
 		return err
 	}
 
-	w := newWorker(uint8(req.Msg.NumCpus))
+	w := newWorker(uint8(req.Msg.NumCpus), req.Msg.Device)
 	id := s.workers.add(w)
 
 	trustedID, trusted := s.workers.trusted(id)
@@ -39,7 +39,9 @@ func (s *server) Subscribe(
 		trusted.events <- &distributed.SubscribeResponse{
 			Type: distributed.ServerEventType_SEND_STATE,
 			Event: &distributed.SubscribeResponse_SendState{
-				SendState: new(distributed.SendStateEvent),
+				SendState: &distributed.SendStateEvent{
+					Device: w.device,
+				},
 			},
 		}
 	} else {

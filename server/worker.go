@@ -13,6 +13,8 @@ type worker struct {
 	// the width of the slices that are assigned to the worker.
 	numCPUs uint8
 
+	device string
+
 	// joinedAt is the time the worker joined the experiment.
 	joinedAt time.Time
 
@@ -31,9 +33,11 @@ type worker struct {
 }
 
 // newWorker creates a new worker.
-func newWorker(numCPUs uint8) *worker {
+func newWorker(numCPUs uint8, device string) *worker {
 	return &worker{
-		numCPUs:  numCPUs,
+		numCPUs: numCPUs,
+		device:  device,
+
 		joinedAt: time.Now(),
 
 		events:     make(chan *distributed.SubscribeResponse, 15),

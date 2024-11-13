@@ -71,16 +71,20 @@ class SendStateResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class SubscribeRequest(_message.Message):
-    __slots__ = ("num_cpus", "num_pop")
+    __slots__ = ("num_cpus", "num_pop", "device")
     NUM_CPUS_FIELD_NUMBER: _ClassVar[int]
     NUM_POP_FIELD_NUMBER: _ClassVar[int]
+    DEVICE_FIELD_NUMBER: _ClassVar[int]
     num_cpus: int
     num_pop: int
-    def __init__(self, num_cpus: _Optional[int] = ..., num_pop: _Optional[int] = ...) -> None: ...
+    device: str
+    def __init__(self, num_cpus: _Optional[int] = ..., num_pop: _Optional[int] = ..., device: _Optional[str] = ...) -> None: ...
 
 class SendStateEvent(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("device",)
+    DEVICE_FIELD_NUMBER: _ClassVar[int]
+    device: str
+    def __init__(self, device: _Optional[str] = ...) -> None: ...
 
 class EvaluateBatchEvent(_message.Message):
     __slots__ = ("pop_slice",)
