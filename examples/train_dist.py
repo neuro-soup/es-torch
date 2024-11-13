@@ -178,7 +178,7 @@ class Worker:
         policy_batch_slice = slice(res.pop_slice.start, res.pop_slice.end)
         rewards = self._evaluate_policy_batch(perturbed_params[policy_batch_slice, :])
         print(
-            f"(Worker {self.worker_id}): Epoch {self.epoch} | Slice [{res.pop_slice.start}:{res.pop_slice.end}] | Mean reward: {rewards.max()} | Max reward: {rewards.mean()}"
+            f"(Worker {self.worker_id}): Epoch {self.epoch} | Slice [{res.pop_slice.start}:{res.pop_slice.end}] | Mean reward: {rewards.mean()} | Max reward: {rewards.max()}"
         )
         await self.stub.Done(
             proto.DoneRequest(
