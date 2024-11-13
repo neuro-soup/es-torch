@@ -166,7 +166,7 @@ class Worker:
             )
         else:
             worker_state = pickle.loads(res.init_state)
-            rng_state = worker_state.optim_rng_state.to(self.config.device)
+            rng_state = worker_state.optim_rng_state  # .to(self.config.device)
             self.optim = ES(
                 self.config.es, params=worker_state.optim_params, device=self.config.device, rng_state=rng_state
             )

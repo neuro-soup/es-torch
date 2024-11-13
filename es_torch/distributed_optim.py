@@ -8,16 +8,16 @@ from torch import Tensor
 
 
 class Sampler(Protocol):
-    def __call__(self, n_pop: int, n_params: int, generator: torch.Generator, device: str) -> torch.Tensor: ...
+    def __call__(self, n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor: ...
 
 
-def get_antithetic_noise(n_pop: int, n_params: int, generator: torch.Generator, device: str) -> torch.Tensor:
-    noise = torch.randn((n_pop // 2, n_params), generator=generator, device=device)
+def get_antithetic_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
+    noise = torch.randn((n_pop // 2, n_params), generator=generator)
     return torch.cat([noise, -noise], dim=0)
 
 
-def get_normal_noise(n_pop: int, n_params: int, generator: torch.Generator, device: str) -> torch.Tensor:
-    return torch.randn((n_pop, n_params), generator=generator, device=device)
+def get_normal_noise(n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor:
+    return torch.randn((n_pop, n_params), generator=generator)
 
 
 type RewardTransform = Callable[[Float[Tensor, "npop"]], Float[Tensor, "npop"]]
@@ -70,7 +70,7 @@ class ES:
         self._cfg = config
         self._device = device
         self.params = params.to(device)
-        self.generator = torch.Generator(device).manual_seed(config.seed)
+        self.generator = torch.Generator(device="cpu").manual_seed(config.seed)  # cpu state != gpu state ...
         if rng_state is not None:
             self.generator.set_state(rng_state)
         self._get_noise = partial(
@@ -78,7 +78,6 @@ class ES:
             n_pop=config.n_pop,
             n_params=len(params),
             generator=self.generator,
-            device=device,
         )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
         self._perturbed_params: Float[Tensor, "npop params"] | None = None
@@ -93,6 +92,6 @@ class ES:
 
     @torch.inference_mode()
     def get_perturbed_params(self) -> Float[Tensor, "npop params"]:
-        noise = self._get_noise()
+        noise = self._get_noise().to(self._device)
         self._perturbed_params = self.params.unsqueeze(0) + self._cfg.std * noise
         return self._perturbed_params.squeeze()
