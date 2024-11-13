@@ -70,7 +70,9 @@ message HelloEvent {
   optional bytes init_state = 2;
 }
 
-message SendStateEvent {}
+message SendStateEvent {
+  string device = 1;
+}
 
 message EvaluateBatchEvent {
   Slice pop_slice = 1; // TODO: repeated slice
