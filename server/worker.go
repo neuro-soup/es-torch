@@ -132,3 +132,18 @@ func (wp *workerPool) trusted(not uint8) (trustedID uint8, trusted *worker) {
 	}
 	return trustedID, trusted
 }
+
+// returns the ID of the worker that has been in the pool the longest
+func (wp *workerPool) oldestWorker() (oldestID uint8) {
+    wp.RLock()
+    defer wp.RUnlock()
+
+    var oldestJoinTime time.Time
+    for id, w := range wp.iter() {
+        if oldestJoinTime.IsZero() || w.joinedAt.Before(oldestJoinTime) {
+            oldestJoinTime = w.joinedAt
+            oldestID = id
+        }
+    }
+    return oldestID
+}

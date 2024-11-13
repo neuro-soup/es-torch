@@ -43,13 +43,14 @@ func (s *server) Done(
 	}
 
 	if s.slices.isEpochDone() {
-		rewards := s.slices.rewards()
-		for i, w := range s.workers.iter() {
+        rewards := s.slices.rewards()
+        loggingWorkerID := s.workers.oldestWorker()
+		for id, w := range s.workers.iter() {
 			w.events <- &distributed.SubscribeResponse{
 				Type: distributed.ServerEventType_OPTIM_STEP,
 				Event: &distributed.SubscribeResponse_OptimStep{
 					OptimStep: &distributed.OptimStepEvent{
-						Logging: i == 0,
+						Logging: id == loggingWorkerID,
 						Rewards: rewards,
 					},
 				},
