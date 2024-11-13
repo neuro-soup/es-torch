@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -154,3 +155,7 @@ def flatten_dict(d: dict) -> dict:
         if isinstance(v, dict):
             flat.update(flatten_dict(v))
     return flat
+
+
+def short_uuid(n: int = 8) -> str:
+    return str(uuid.uuid4())[:n]
