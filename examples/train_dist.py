@@ -28,6 +28,7 @@ from examples.utils import (
     WandbArgumentHandler,
     WandbConfig,
     reshape_params,
+    short_uuid,
 )
 
 
@@ -76,7 +77,7 @@ class WorkerState:
     epoch: int
     optim_params: torch.Tensor
     optim_rng_state: torch.ByteTensor
-    wandb_run: wandb.sdk.wandb_run.Run | None
+    wandb_run_id: str | None = None
 
 
 class Worker:
@@ -91,6 +92,7 @@ class Worker:
         self.optim: ES | None = None
         self.epoch: int = 0
         self.wandb_run: wandb.sdk.wandb_run.Run | None = None
+        self.wandb_run_id: str | None = None
 
     async def run(self) -> None:
         heartbeat_task = asyncio.create_task(self._send_heartbeats())
@@ -153,8 +155,10 @@ class Worker:
         if not res.init_state:
             initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(self.config.policy).parameters())
             self.optim = ES(self.config.es, params=initial_params, device=self.config.device)
+            self.wandb_run_id = short_uuid()
             self.wandb_run = (
                 wandb.init(
+                    id=self.wandb_run_id,
                     project=self.config.wandb.project,
                     name=self.config.wandb.name,
                     tags=self.config.wandb.tags,
@@ -165,13 +169,13 @@ class Worker:
                 else None
             )
         else:
-            worker_state = pickle.loads(res.init_state)
+            worker_state: WorkerState = pickle.loads(res.init_state)
             rng_state = worker_state.optim_rng_state  # .to(self.config.device)
             self.optim = ES(
                 self.config.es, params=worker_state.optim_params, device=self.config.device, rng_state=rng_state
             )
             self.epoch = worker_state.epoch
-            self.wandb_run = worker_state.wandb_run
+            self.wandb_run_id = worker_state.wandb_run_id
 
     async def _handle_evaluate_batch(self, res: proto.ServerEventType.EvaluateBatchEvent) -> None:
         perturbed_params = self.optim.get_perturbed_params()
@@ -196,7 +200,9 @@ class Worker:
         self.epoch += 1
         mean_reward, max_reward = rewards.mean(), rewards.max()
         print(f"Epoch {self.epoch}/{self.config.epochs}: Mean reward: {mean_reward} | Max reward: {max_reward}")
-        if self.wandb_run and res.logging:  # one dedicated worker logs to wandb
+        print(res.logging)
+        print(self.wandb_run_id)
+        if self._is_logger(res):
             print("Logging to wandb...")
             self.wandb_run.log(
                 {
@@ -218,7 +224,7 @@ class Worker:
             epoch=self.epoch,
             optim_params=self.optim.params.to(res.device),
             optim_rng_state=self.optim.generator.get_state().to(res.device),
-            wandb_run=self.wandb_run,
+            wandb_run_id=self.wandb_run.id,
         )
         await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(worker_state)))
 
@@ -250,6 +256,21 @@ class Worker:
 
         env.close()
         return torch.tensor(total_rewards, device=self.config.device)
+
+    def _is_logger(self, res: proto.ServerEventType.OPTIM_STEP) -> bool:
+        """Check if this worker is the current dedicated logging worker and setup wandb it was not already."""
+        is_logger = res.logging and self.wandb_run_id is not None
+        if is_logger and self.wandb_run is None:
+            self.wandb_run = wandb.init(
+                id=self.wandb_run_id,
+                resume="must",
+                project=self.config.wandb.project,
+                name=self.config.wandb.name,
+                tags=self.config.wandb.tags,
+                entity=self.config.wandb.entity,
+                config=vars(self.config),
+            )
+        return is_logger
 
 
 def train(config: Config, server: str) -> None:
