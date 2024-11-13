@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed"
 	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed/distributedconnect"
 )
 
@@ -85,6 +86,24 @@ func (s *server) clean(id uint8, w *worker) {
 
 	s.workers.remove(id)
 	s.slices.free(w)
+
+	for id, w := range s.slices.idle(s.workers) {
+		sl := s.slices.assign(id, w)
+		if sl == nil {
+			continue
+		}
+		w.events <- &distributed.SubscribeResponse{
+			Type: distributed.ServerEventType_EVALUATE_BATCH,
+			Event: &distributed.SubscribeResponse_EvaluateBatch{
+				EvaluateBatch: &distributed.EvaluateBatchEvent{
+					PopSlice: &distributed.Slice{
+						Start: int32(sl.start),
+						End:   int32(sl.end),
+					},
+				},
+			},
+		}
+	}
 }
 
 // disconnect disconnects a worker from the server and removes it from the
