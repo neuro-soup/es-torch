@@ -155,3 +155,23 @@ func (s *slices) rewards() [][]byte {
 	}
 	return rewards
 }
+
+func (s *slices) idle(wp *workerPool) map[uint8]*worker {
+	s.RLock()
+	defer s.RUnlock()
+
+	workers := make(map[uint8]*worker)
+	for id, w := range wp.iter() {
+		idle := true
+		for _, sl := range s.slices {
+			if sl.worker == w && sl.rewards == nil {
+				idle = false
+				break
+			}
+		}
+		if idle {
+			workers[id] = w
+		}
+	}
+	return workers
+}
