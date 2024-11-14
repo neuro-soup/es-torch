@@ -225,7 +225,7 @@ class Worker:
             epoch=self.epoch,
             optim_params=self.optim.params.to(res.device),
             optim_rng_state=self.optim.generator.get_state(),
-            wandb_run_id=self.wandb_run.id,
+            wandb_run_id=self.wandb_run_id,
         )
         await self.stub.SendState(proto.SendStateRequest(id=self.worker_id, state=pickle.dumps(worker_state)))
 
