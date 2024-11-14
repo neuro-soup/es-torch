@@ -58,29 +58,29 @@ func (e *Epoch) Assign(w *worker.Worker) *worker.Slice {
 
 	slog.Debug("assigning slice to worker...", "worker_id", w.ID)
 
-	for i, sl := range e.unassigned {
-		diff := sl.Width()
-		if diff <= uint32(w.Config.NumCPUs) {
-			// claim existing entire slice fits on worker's CPUs
-			return &sl
-		}
-
-		sub := worker.Slice{
-			Start: sl.Start,
-			End:   sl.Start + uint32(w.Config.NumCPUs),
-		}
-
-		sl.Start = sub.End
-		if sl.Start != sl.End {
-			e.unassigned[i] = sl
-		} else {
-			e.unassigned = append([]worker.Slice{sub}, e.unassigned[i+1:]...)
-		}
-
-		return &sub
+	if len(e.unassigned) == 0 {
+		// no slices left
+		slog.Debug("no slices left for worker", "worker", w.ID)
+		return nil
 	}
 
-	return nil
+	next := e.unassigned[0]
+	diff := next.Width()
+
+	if diff <= uint32(w.Config.NumCPUs) {
+		// claim existing entire slice fits on worker's CPUs
+		e.unassigned = e.unassigned[1:]
+		return &next
+	}
+
+	next.End = next.Start + uint32(w.Config.NumCPUs)
+	split := worker.Slice{
+		Start: next.Start + uint32(w.Config.NumCPUs) + 1,
+		End:   next.End,
+	}
+
+	e.unassigned = append(e.unassigned[1:], split)
+	return &next
 }
 
 // Reward rewards a slice with a list of rewards.
