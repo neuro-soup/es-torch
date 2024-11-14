@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/neuro-soup/es-torch/server/pkg/proto/distributed/distributedconnect"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -24,6 +25,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle(distributedconnect.NewESServiceHandler(newServer()))
+	mux.Handle("/metrics", promhttp.Handler())
 
 	slog.Info("starting server...", "port", serverPort)
 	err := http.ListenAndServe(":"+strconv.Itoa(serverPort), h2c.NewHandler(mux, new(http2.Server)))

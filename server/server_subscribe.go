@@ -93,6 +93,7 @@ func (s *server) Subscribe(
 				break
 			}
 			slog.Debug("sent event", "worker_id", id, "event", evt.Type.String())
+			eventsSent.Inc()
 		}
 	}
 }
