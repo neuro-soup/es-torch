@@ -155,7 +155,7 @@ class Worker:
         if not res.init_state:
             initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(self.config.policy).parameters())
             self.optim = ES(self.config.es, params=initial_params, device=self.config.device)
-            self.wandb_run_id = short_uuid()
+            self.wandb_run_id = short_uuid() if self.config.wandb.enabled else None
             self.wandb_run = (
                 wandb.init(
                     id=self.wandb_run_id,
