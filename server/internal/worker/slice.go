@@ -11,11 +11,11 @@ type Slice struct {
 	End uint32
 }
 
-func (s *Slice) String() string {
+func (s Slice) String() string {
 	return fmt.Sprintf("Slice(Start=%d, End=%d)", s.Start, s.End)
 }
 
 // Width returns the width of the slice.
-func (s *Slice) Width() uint32 {
+func (s Slice) Width() uint32 {
 	return s.End - s.Start
 }

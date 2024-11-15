@@ -67,7 +67,16 @@ func (h *Handler) Subscribe(ctx context.Context, req *subscribeRequest, stream *
 
 			if sl := joined.Evaluating(); sl != nil {
 				// client didn't finish evaluating the slice, so we need to
-				// send a done event to the client
+				// put it back into the pool
+				delegate := h.workers.Available()
+				fmt.Println("after loop")
+				if delegate != nil {
+					slog.Debug("worker didn't finish evaluation, redistributed", "joined", joined.ID, "slice", sl, "delegate", delegate.ID)
+					delegate.SendEvaluate(*sl)
+				} else {
+					slog.Debug("worker didn't finish evaluation, putting it back", "joined", joined.ID, "slice", sl)
+					h.epoch.Unassign(*sl)
+				}
 			}
 
 			joined.Destroy()

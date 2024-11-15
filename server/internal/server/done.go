@@ -33,6 +33,7 @@ func (h *Handler) Done(
 		Start: uint32(req.Msg.Slice.Start),
 		End:   uint32(req.Msg.Slice.End),
 	}
+	w.ReceiveDone(sl)
 
 	if err := h.epoch.Reward(sl, req.Msg.BatchRewards); err != nil {
 		slog.Error("failed to reward", "id", req.Msg.Id, "err", err)
@@ -73,12 +74,13 @@ func (h *Handler) handleEpochDone(req *doneRequest) (*doneResponse, error) {
 	h.epoch.Next(h.population)
 
 	// broadcast new evaluations
-	for w := range h.workers.Participating() {
+	for w := range h.workers.Iter(nil) {
 		if next := h.epoch.Assign(w); next != nil {
 			slog.Debug("sending worker next batch", "id", req.Msg.Id, "slice", next)
 			w.SendEvaluate(*next)
 		}
 	}
 
+	slog.Debug("handled done", "id", req.Msg.Id)
 	return connect.NewResponse(new(distributed.DoneResponse)), nil
 }

@@ -10,7 +10,7 @@ import (
 )
 
 // heartbeatTimeout is the timeout for heartbeats.
-const heartbeatTimeout = time.Minute
+const heartbeatTimeout = 20 * time.Second
 
 // eventBufferSize is the size of the event buffer.
 const eventBufferSize = 15
@@ -32,6 +32,9 @@ const (
 
 	// StatusDisconnecting is the status of the worker when it is disconnecting.
 	StatusDisconnecting = "disconnecting"
+
+	// StatusIdling is the status of the worker when it is idling.
+	StatusIdling = "idling"
 )
 
 // Config is the client-side configuration of the worker.
@@ -44,6 +47,8 @@ type Config struct {
 }
 
 type Worker struct {
+	mu sync.RWMutex
+
 	// ID is the unique identifier of the worker.
 	ID uint8
 
@@ -67,16 +72,14 @@ type Worker struct {
 
 	// disconnects are the channels used to send a signal to the worker to
 	// disconnect. The channel is closed when the worker disconnects.
-	disconnects   []chan struct{}
-	disconnectsMu sync.RWMutex
+	disconnects []chan struct{}
 
 	// evaluating is the slice that the worker is currently evaluating. If nil,
 	// the worker is not evaluating a slice.
 	evaluating *Slice
 
 	// stateRequest is the channel used to request the worker's state.
-	stateRequests   []chan []byte
-	stateRequestsMu sync.RWMutex
+	stateRequests []chan []byte
 
 	// destroyed is true if the worker has been destroyed.
 	destroyed bool
@@ -99,7 +102,7 @@ func (w *Worker) String() string {
 
 // Participates returns true if the worker is participating in the experiment.
 func (w *Worker) Participates() bool {
-	return w.Status != StatusAwaitsHello
+	return w.Status != StatusAwaitsHello && w.Status != StatusDisconnecting
 }
 
 // Disconnect sends a signal to the worker to disconnect.
@@ -118,8 +121,8 @@ func (w *Worker) Disconnect() {
 // Disconnects returns the channel used to send a signal to the worker to
 // disconnect.
 func (w *Worker) Disconnects() <-chan struct{} {
-	w.disconnectsMu.RLock()
-	defer w.disconnectsMu.RUnlock()
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 
 	ch := make(chan struct{}, 1)
 	w.disconnects = append(w.disconnects, ch)
@@ -136,12 +139,12 @@ func (w *Worker) Destroy() {
 	w.destroyed = true
 	close(w.events)
 
-	w.disconnectsMu.Lock()
+	w.mu.Lock()
 	for _, ch := range w.disconnects {
 		close(ch)
 	}
 	w.disconnects = nil
-	w.disconnectsMu.Unlock()
+	w.mu.Unlock()
 }
 
 // ReceiveHeartbeat marks the worker as alive.
@@ -167,8 +170,8 @@ func (w *Worker) ReceiveHeartbeat(sentAt time.Time) error {
 }
 
 func (w *Worker) States() <-chan []byte {
-	w.stateRequestsMu.Lock()
-	defer w.stateRequestsMu.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	ch := make(chan []byte, 1)
 	w.stateRequests = append(w.stateRequests, ch)
@@ -178,8 +181,8 @@ func (w *Worker) States() <-chan []byte {
 // ReceiveState needs to be called when the worker sends its updated state
 // to the server.
 func (w *Worker) ReceiveState(state []byte) {
-	w.stateRequestsMu.RLock()
-	defer w.stateRequestsMu.RUnlock()
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 
 	var wg sync.WaitGroup
 	wg.Add(len(w.stateRequests))
@@ -194,11 +197,15 @@ func (w *Worker) ReceiveState(state []byte) {
 
 // ReceiveDone is called when the worker has finished evaluating the given slice.
 func (w *Worker) ReceiveDone(sl Slice) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	slog.Debug("worker finished evaluating slice",
 		"id", w.ID,
 		"slice", sl,
 	)
 	w.evaluating = nil
+	w.Status = StatusIdling
 }
 
 // Events returns the channel used to send events to the worker.
@@ -208,6 +215,9 @@ func (w *Worker) Events() <-chan *distributed.SubscribeResponse {
 
 // Evaluate requests the worker to evaluate the given slice.
 func (w *Worker) SendEvaluate(slice Slice) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	slog.Debug("evaluating slice...",
 		"id", w.ID,
 		"slice", slice,
@@ -237,8 +247,8 @@ func (w *Worker) Evaluating() *Slice {
 
 // SendStateRequest requests the worker to send its state for the given device.
 func (w *Worker) SendStateRequest(forDevice string) <-chan []byte {
-	w.stateRequestsMu.Lock()
-	defer w.stateRequestsMu.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	ch := make(chan []byte, 1)
 	w.stateRequests = append(w.stateRequests, ch)

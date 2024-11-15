@@ -33,6 +33,7 @@ func (p *Pool) watch() {
 			if time.Since(w.LastHeartbeat) > heartbeatTimeout {
 				slog.Error("worker timed out", "worker", w.ID)
 				w.Disconnect()
+				_ = p.Remove(w)
 			}
 		}
 	}
@@ -93,14 +94,12 @@ func (p *Pool) Len() int {
 	return len(p.workers)
 }
 
-// Iter returns an iterator over all workers in the pool. The pool is
-// read-locked during the iteration.
 func (p *Pool) Iter(filter func(*Worker) bool) iter.Seq[*Worker] {
-	return func(yield func(*Worker) bool) {
-		p.mu.RLock()
-		defer p.mu.RUnlock()
+	cp := make([]*Worker, len(p.workers))
+	copy(cp, p.workers)
 
-		for _, w := range p.workers {
+	return func(yield func(*Worker) bool) {
+		for _, w := range cp {
 			if filter != nil && !filter(w) {
 				continue
 			}
@@ -137,4 +136,14 @@ func (p *Pool) LowestPing(filter func(*Worker) bool) *Worker {
 
 func (p *Pool) Participating() iter.Seq[*Worker] {
 	return p.Iter(func(w *Worker) bool { return w.Participates() })
+}
+
+func (p *Pool) Available() *Worker {
+	for _, w := range p.workers {
+		if w.Status == StatusIdling {
+			return w
+		}
+	}
+
+	return nil
 }
