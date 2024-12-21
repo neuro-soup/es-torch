@@ -44,7 +44,7 @@ class Config(ExperimentConfig):
         """More or less from: https://github.com/openai/evolution-strategies-starter/blob/master/configurations/humanoid.json"""
         return cls(
             es=ESConfig(
-                n_pop=40,  # original uses 1440, but that's not feasible on a single reasonable machine
+                npop=40,  # original uses 1440, but that's not feasible on a single reasonable machine
                 lr=0.01,
                 std=0.02,
                 weight_decay=0.005,
@@ -108,7 +108,7 @@ def evaluate_policy_batch(
 
 
 def train(config: Config) -> torch.Tensor:
-    env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.n_pop, vectorization_mode=VectorizeMode.ASYNC)
+    env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.npop, vectorization_mode=VectorizeMode.ASYNC)
     initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(config.policy).parameters())
     optim = ES(
         config.es,

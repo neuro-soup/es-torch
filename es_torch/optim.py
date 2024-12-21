@@ -29,7 +29,7 @@ REWARD_TRANSFORMS: dict[RewardTransformStrategy, RewardTransform] = {
 
 @dataclass
 class Config:
-    n_pop: int
+    npop: int
     lr: float
     std: float
     weight_decay: float
@@ -40,7 +40,7 @@ class Config:
 
     def __post_init__(self) -> None:
         assert 0 <= self.weight_decay < 1, "Weight decay should be in [0, 1)."
-        assert self.n_pop % 2 == 0, "Number of workers should be even."
+        assert (self.npop % 2 == 0) or not (self.sampling_strategy == "antithetic"), "Number of workers should be even."
 
 
 class ES:
@@ -57,9 +57,9 @@ class ES:
             self.generator.set_state(rng_state)
         self._get_noise = partial(
             SAMPLING_STRATEGIES[config.sampling_strategy],
-            n_pop=config.n_pop,
-            n_params=len(params),
-            generator=self.generator,
+            config.npop,
+            len(params),
+            self.generator,
         )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
         self._perturbed_params: Float[Tensor, "npop params"] | None = None
@@ -67,7 +67,7 @@ class ES:
     @torch.inference_mode()
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
-        gradient = self.cfg.lr / (self.cfg.n_pop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
+        gradient = self.cfg.lr / (self.cfg.npop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
         self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params
 
     @torch.inference_mode()

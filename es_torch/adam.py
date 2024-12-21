@@ -31,7 +31,7 @@ class ES(optim.ES):
     @torch.inference_mode()
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
-        grad_estimate = self.cfg.lr / (self.cfg.n_pop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
+        grad_estimate = self.cfg.lr / (self.cfg.npop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
         self.m = self.cfg.beta1 * self.m + (1 - self.cfg.beta1) * grad_estimate
         self.v = self.cfg.beta2 * self.v + (1 - self.cfg.beta2) * grad_estimate**2
         m_hat = self.m / (1 - self.cfg.beta1 ** (self.t + 1))

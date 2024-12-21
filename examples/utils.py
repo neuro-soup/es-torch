@@ -62,7 +62,7 @@ class ESArgumentHandler:
 
     @classmethod
     def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
-        config.es.n_pop = args[cls.population_size] or config.es.n_pop
+        config.es.npop = args[cls.population_size] or config.es.npop
         config.es.std = args[cls.std_dev] or config.es.std
         config.es.lr = args[cls.learning_rate] or config.es.lr
         config.es.weight_decay = args[cls.weight_decay] or config.es.weight_decay

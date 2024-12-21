@@ -46,7 +46,7 @@ class Config(ExperimentConfig):
         """More or less from: https://github.com/openai/evolution-strategies-starter/blob/master/configurations/humanoid.json"""
         return cls(
             es=ESConfig(
-                n_pop=1440,
+                npop=1440,
                 lr=0.01,
                 std=0.02,
                 weight_decay=0.005,
@@ -131,7 +131,7 @@ class Worker:
             responses = self.stub.Subscribe(
                 proto.SubscribeRequest(
                     num_cpus=multiprocessing.cpu_count(),
-                    num_pop=self.config.es.n_pop,
+                    num_pop=self.config.es.npop,
                     device=self.config.es.device,
                 )
             )

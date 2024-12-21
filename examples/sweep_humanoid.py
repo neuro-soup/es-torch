@@ -57,7 +57,7 @@ def run_sweep() -> None:
     config = Config.default()
     config.wandb.enabled = True
     config.epochs = MAX_EPOCHS
-    config.es.n_pop = 40
+    config.es.npop = 40
     config.policy.hidden_dim = 256
     config.es.reward_transform = "normalized"
     config.es.sampling_strategy = "antithetic"
