@@ -16,7 +16,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import wandb
-from es_torch.distributed_optim import Config as ESConfig, ES
+from es_torch.optim import Config as ESConfig, ES
 from google.protobuf import timestamp_pb2
 from gymnasium import VectorizeMode
 
@@ -192,9 +192,7 @@ class Worker:
         )
 
     async def _handle_optim_step(self, res: proto.ServerEventType.OptimStepEvent) -> None:
-        rewards = torch.tensor(
-            [torch.frombuffer(r, dtype=torch.float32) for r in res.rewards], device=self.config.es.device
-        )
+        rewards = torch.tensor([torch.frombuffer(r, dtype=torch.float32) for r in res.rewards], device=self.config.es.device)
         self.optim.step(rewards)
         self.epoch += 1
         mean_reward, max_reward = rewards.mean(), rewards.max()

@@ -67,9 +67,7 @@ class ES:
     @torch.inference_mode()
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
-        gradient = (
-            self.cfg.lr / (self.cfg.n_pop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
-        )
+        gradient = self.cfg.lr / (self.cfg.n_pop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
         self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params
 
     @torch.inference_mode()
