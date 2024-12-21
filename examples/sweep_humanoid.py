@@ -36,7 +36,7 @@ SWEEP_CFG = {
             "min": 0.0,
             "max": 0.03,
         },
-        # "sampling_strategy": { # todo centered rank seems to be performing slightly worse (impl. error?)
+        # "sampling_strategy": {
         #     "values": ["antithetic", "normal"],
         # },
         # "reward_transform": {  # seems to have no effect

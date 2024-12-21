@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import partial
-from typing import Literal, Protocol
+from typing import Callable, Literal, Protocol
 
 import torch
 from jaxtyping import Float
@@ -25,6 +25,7 @@ REWARD_TRANSFORMS: dict[RewardTransformStrategy, RewardTransform] = {
     "centered_rank": lambda rewards: (rewards.argsort().argsort() - ((len(rewards) - 1) / 2)) / (len(rewards) - 1),
     "normalized": lambda rewards: (rewards - rewards.mean()) / rewards.std(),
 }
+type EvalFxn = Callable[[Float[Tensor, "npop params"]], Float[Tensor, "npop"]]
 
 
 @dataclass
@@ -44,36 +45,23 @@ class Config:
 
 
 class ES:
-    def __init__(
-        self,
-        config: Config,
-        params: Float[Tensor, "params"],
-        rng_state: torch.ByteTensor | None = None,
-    ) -> None:
+    def __init__(self, config: Config, params: Float[Tensor, "params"], eval_fxn: EvalFxn) -> None:
         self.cfg = config
-        self.params = params.to(config.device)
-        self.generator = torch.Generator(device="cpu").manual_seed(config.seed)  # CPU: reproducibility & easier sharing
-        if rng_state is not None:
-            self.generator.set_state(rng_state)
+        self.params = params
+        self._eval_policies = eval_fxn
         self._get_noise = partial(
             SAMPLING_STRATEGIES[config.sampling_strategy],
-            n_pop=config.n_pop,
-            n_params=len(params),
-            generator=self.generator,
+            config.n_pop,
+            len(params),
+            torch.Generator().manual_seed(config.seed),
         )
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
-        self._perturbed_params: Float[Tensor, "npop params"] | None = None
 
     @torch.inference_mode()
-    def step(self, rewards: Float[Tensor, "npop"]) -> None:
+    def step(self) -> None:
+        noise = self._get_noise()
+        perturbations = self.cfg.std * noise
+        rewards = self._eval_policies(self.params.unsqueeze(0) + perturbations)
         rewards = self._transform_reward(rewards)
-        gradient = (
-            self.cfg.lr / (self.cfg.n_pop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
-        )
+        gradient = self.cfg.lr / (self.cfg.n_pop * self.cfg.std) * torch.einsum("np,n->p", perturbations, rewards)
         self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params
-
-    @torch.inference_mode()
-    def get_perturbed_params(self) -> Float[Tensor, "npop params"]:
-        noise = self._get_noise().to(self.cfg.device)
-        self._perturbed_params = self.params.unsqueeze(0) + self.cfg.std * noise
-        return self._perturbed_params.squeeze()

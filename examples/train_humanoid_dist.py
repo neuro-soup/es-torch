@@ -16,11 +16,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 import wandb
+from es_torch.distributed_optim import Config as ESConfig, ES
 from google.protobuf import timestamp_pb2
 from gymnasium import VectorizeMode
 
 from es_torch.distributed import distributed_pb2 as proto, distributed_pb2_grpc as services
-from es_torch.distributed_optim import Config as ESConfig, ES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
@@ -38,7 +38,6 @@ class Config(ExperimentConfig):
     epochs: int
     max_episode_steps: int
     env_seed: Optional[int]
-    device: str
     ckpt_every: int = -1
     ckpt_path: Optional[str | Path] = None
 
@@ -54,6 +53,7 @@ class Config(ExperimentConfig):
                 sampling_strategy="antithetic",
                 reward_transform="centered_rank",
                 seed=42,
+                device="cuda" if torch.cuda.is_available() else "cpu",
             ),
             wandb=WandbConfig(
                 project="ES-Humanoid",
@@ -66,7 +66,6 @@ class Config(ExperimentConfig):
             epochs=1000,
             max_episode_steps=1000,
             env_seed=None,
-            device="cuda" if torch.cuda.is_available() else "cpu",
         )
 
 
@@ -90,6 +89,7 @@ class Worker:
         self.done: bool = False
 
         self.optim: ES | None = None
+        self.env: gym.vector.VectorEnv | None = None
         self.epoch: int = 0
         self.wandb_run: wandb.sdk.wandb_run.Run | None = None
         self.wandb_run_id: str | None = None
@@ -132,7 +132,7 @@ class Worker:
                 proto.SubscribeRequest(
                     num_cpus=multiprocessing.cpu_count(),
                     num_pop=self.config.es.n_pop,
-                    device=self.config.device,
+                    device=self.config.es.device,
                 )
             )
             async for res in responses:
@@ -154,7 +154,7 @@ class Worker:
         self.worker_id = res.id
         if not res.init_state:
             initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(self.config.policy).parameters())
-            self.optim = ES(self.config.es, params=initial_params, device=self.config.device)
+            self.optim = ES(self.config.es, params=initial_params)
             self.wandb_run_id = short_uuid() if self.config.wandb.enabled else None
             self.wandb_run = (
                 wandb.init(
@@ -170,11 +170,9 @@ class Worker:
             )
         else:
             worker_state: WorkerState = pickle.loads(res.init_state)
-            rng_state = worker_state.optim_rng_state  # .to(self.config.device)
+            rng_state = worker_state.optim_rng_state  # .to(self.config.es.device)
             print(rng_state)
-            self.optim = ES(
-                self.config.es, params=worker_state.optim_params, device=self.config.device, rng_state=rng_state
-            )
+            self.optim = ES(self.config.es, params=worker_state.optim_params, rng_state=rng_state)
             self.epoch = worker_state.epoch
             self.wandb_run_id = worker_state.wandb_run_id
 
@@ -195,7 +193,7 @@ class Worker:
 
     async def _handle_optim_step(self, res: proto.ServerEventType.OptimStepEvent) -> None:
         rewards = torch.tensor(
-            [torch.frombuffer(r, dtype=torch.float32) for r in res.rewards], device=self.config.device
+            [torch.frombuffer(r, dtype=torch.float32) for r in res.rewards], device=self.config.es.device
         )
         self.optim.step(rewards)
         self.epoch += 1
@@ -231,14 +229,15 @@ class Worker:
 
     def _evaluate_policy_batch(self, policy_params_batch: torch.Tensor) -> torch.Tensor:
         npop = policy_params_batch.size(0)
-        env = gym.make_vec("Humanoid-v5", num_envs=npop, vectorization_mode=VectorizeMode.ASYNC)
+        if self.env is None or self.env.num_envs != npop:
+            self.env = gym.make_vec("Humanoid-v5", num_envs=npop, vectorization_mode=VectorizeMode.ASYNC)
 
-        obs, _ = env.reset(seed=self.config.env_seed)
-        dones = np.zeros(env.num_envs, dtype=bool)
-        total_rewards = np.zeros(env.num_envs, dtype=np.float32)
+        obs, _ = self.env.reset(seed=self.config.env_seed)
+        dones = np.zeros(npop, dtype=bool)
+        total_rewards = np.zeros(npop, dtype=np.float32)
 
         base_model = SimpleMLP(self.config.policy).to("meta")
-        params_flat = policy_params_batch.to(self.config.device)
+        params_flat = policy_params_batch.to(self.config.es.device)
         stacked_params_dict = reshape_params(params_flat, base_model)
 
         def call_model(params: dict[str, torch.Tensor], o: torch.Tensor) -> torch.Tensor:
@@ -247,16 +246,14 @@ class Worker:
         vmapped_call_model = torch.vmap(call_model, in_dims=(0, 0))
 
         for _ in range(self.config.max_episode_steps):
-            obs = torch.tensor(obs, dtype=torch.float32, device=self.config.device)
+            obs = torch.tensor(obs, dtype=torch.float32, device=self.config.es.device)
             actions = vmapped_call_model(stacked_params_dict, obs)
-            obs, rewards, terminations, truncations, _ = env.step(actions.cpu().numpy())
-            dones = dones | terminations | truncations
+            obs, rewards, terminations, truncations, _ = self.env.step(actions.cpu().numpy())
             total_rewards += rewards * ~dones
+            dones = dones | terminations | truncations
             if dones.all():
                 break
-
-        env.close()
-        return torch.tensor(total_rewards, device=self.config.device)
+        return torch.tensor(total_rewards, device=self.config.es.device)
 
     def _is_logger(self, res: proto.ServerEventType.OPTIM_STEP) -> bool:
         """Check if this worker is the current dedicated logging worker and setup wandb it was not already."""

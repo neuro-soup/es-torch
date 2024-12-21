@@ -14,7 +14,7 @@ from gymnasium import VectorizeMode
 from jaxtyping import Float
 from torch import Tensor
 
-from es_torch.optim import Config as ESConfig, ES
+from es_torch.adam import Config as ESConfig, ES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
@@ -111,17 +111,11 @@ def train(config: Config) -> torch.Tensor:
     optim = ES(
         config.es,
         params=initial_params,
-        eval_fxn=lambda p: (
-            evaluate_policy_batch(
-                policy_params_batch=p,
-                env=env,
-                config=config,
-            )
-        ),
     )
 
     for epoch in range(config.epochs):
-        optim.step()
+        rewards = evaluate_policy_batch(env, optim.get_perturbed_params(), config)
+        optim.step(rewards)
         print(f"Epoch {epoch + 1}/{config.epochs}")
         if config.wandb.enabled:
             wandb.log({"epoch": epoch + 1})

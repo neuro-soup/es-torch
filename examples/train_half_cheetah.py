@@ -1,3 +1,6 @@
+"""Example usage of the `minimal.py` optim that runs on a single machine. Max reward with provided default config: ~1300 @1k steps.
+For examples with the optim from `es_torch`, see `examples/train_humanoid.py` and `examples/train_humanoid_dist.py`."""
+
 from __future__ import annotations
 
 import argparse
@@ -14,7 +17,6 @@ from gymnasium import VectorizeMode
 from jaxtyping import Float
 from torch import Tensor
 
-from es_torch.optim import Config as ESConfig, ES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
@@ -25,6 +27,7 @@ from examples.utils import (
     reshape_params,
     save_policy,
 )
+from minimal import Config as ESConfig, ES
 
 
 @dataclass
@@ -33,7 +36,6 @@ class Config(ExperimentConfig):
     epochs: int
     max_episode_steps: int
     env_seed: int | None
-    device: str
     ckpt_every: int = -1
     ckpt_path: str | Path | None = None
 
@@ -42,13 +44,14 @@ class Config(ExperimentConfig):
         """More or less from: https://github.com/openai/evolution-strategies-starter/blob/master/configurations/humanoid.json"""
         return cls(
             es=ESConfig(
-                n_pop=1440,
+                n_pop=40,  # original uses 1440, but that's not feasible on a single reasonable machine
                 lr=0.01,
                 std=0.02,
                 weight_decay=0.005,
                 sampling_strategy="antithetic",
                 reward_transform="centered_rank",
                 seed=42,
+                device="cuda" if torch.cuda.is_available() else "cpu",
             ),
             wandb=WandbConfig(
                 project="ES-HalfCheetah",
@@ -61,7 +64,6 @@ class Config(ExperimentConfig):
             epochs=1000,
             max_episode_steps=1000,
             env_seed=None,
-            device="cuda" if torch.cuda.is_available() else "cpu",
         )
 
 
@@ -78,7 +80,7 @@ def evaluate_policy_batch(
 
     base_model = SimpleMLP(config.policy).to("meta")
 
-    params_flat = policy_params_batch.to(config.device)
+    params_flat = policy_params_batch.to(config.es.device)
     params_stacked = reshape_params(params_flat, base_model)
 
     def call_model(params: dict[str, Tensor], o: Tensor) -> Tensor:
@@ -87,7 +89,7 @@ def evaluate_policy_batch(
     vmapped_call_model = torch.vmap(call_model, in_dims=(0, 0))
 
     for _ in range(config.max_episode_steps):
-        obs = torch.tensor(obs, dtype=torch.float32, device=config.device)
+        obs = torch.tensor(obs, dtype=torch.float32, device=config.es.device)
         actions = vmapped_call_model(params_stacked, obs)  # cannot mask done envs due to vmap :/ (I think)
         obs, rewards, terminations, truncations, _ = env.step(actions.cpu().numpy())
         dones = dones | terminations | truncations
