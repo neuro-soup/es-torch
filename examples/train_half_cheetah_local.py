@@ -1,4 +1,6 @@
-"""Example usage of the es-torch optim on a single machine. Avg reward with provided default config: ~3000."""
+"""Example usage of the es-torch optim on a single machine. Avg reward with provided default config: ~4000.
+Note: seed seems to matter a lot...  123323: 4k reward, 42: 1.7k reward
+"""
 
 from __future__ import annotations
 
@@ -48,7 +50,7 @@ class Config(ExperimentConfig):
                 weight_decay=0.0025,
                 sampling_strategy="antithetic",
                 reward_transform="centered_rank",
-                seed=42,
+                seed=123323,
                 device="cuda" if torch.cuda.is_available() else "cpu",
             ),
             wandb=WandbConfig(
