@@ -160,7 +160,7 @@ class Worker(evochi.Worker[WorkerState]):
         rewards = evaluate_policy_batch(
             env=self.env,
             model=self.policy,
-            policy_params_batch=self.perturbed_params[list(range(s.start, s.stop) for s in slices)],
+            policy_params_batch=self.perturbed_params[[i for s in slices for i in range(s.start, s.stop)]],
             max_episode_steps=self.cfg.max_episode_steps,
             device=self.cfg.es.device,
             env_seed=self.cfg.env_seed,
