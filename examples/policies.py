@@ -20,13 +20,14 @@ class SimpleMLP(nn.Module):
             nn.Tanh(),
             nn.Linear(config.hidden_dim, config.act_dim),
         )
-        self.apply(self._init_weights)
 
-    @staticmethod
-    def _init_weights(m: nn.Module) -> None:
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_uniform_(m.weight)
-            nn.init.zeros_(m.bias)
+    def init_weights(self) -> None:
+        def _init_weights(m: nn.Module) -> None:
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+
+        self.apply(_init_weights)
 
     def forward(self, obs: Tensor) -> Tensor:
         return self.network(obs)

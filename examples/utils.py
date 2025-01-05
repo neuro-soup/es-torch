@@ -62,7 +62,7 @@ class ESArgumentHandler:
         parser.add_argument(f"--{cls.random_seed}", type=int, help="Seed for noise sampling")
 
     @classmethod
-    def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
+    def update_config(cls, args: dict[str, Any], config) -> None:
         config.es.npop = args[cls.population_size] or config.es.npop
         config.es.std = args[cls.std_dev] or config.es.std
         config.es.lr = args[cls.learning_rate] or config.es.lr
@@ -93,7 +93,7 @@ class WandbArgumentHandler:
         parser.add_argument(f"--{cls.entity}", type=str, help="Wandb entity")
 
     @classmethod
-    def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
+    def update_config(cls, args: dict[str, Any], config) -> None:
         config.wandb.id = args[cls.id] or config.wandb.id
         config.wandb.enabled = args[cls.enable]
         config.wandb.project = args[cls.project] or config.wandb.project
