@@ -24,9 +24,11 @@ from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
     ExperimentConfig,
+    Paths,
     WandbArgumentHandler,
     WandbConfig,
     reshape_params,
+    save_policy,
 )
 
 
@@ -48,24 +50,24 @@ class Config(ExperimentConfig):
             max_episode_steps=(max_episode_steps := 1000),
             es=ESConfig(
                 npop=1440,
-                lr=0.01,
-                std=0.02,
-                weight_decay=0.005,
+                lr=0.04,
+                std=0.025,
+                weight_decay=0.0025,
                 sampling_strategy="antithetic",
                 reward_transform="centered_rank",
-                seed=42,
+                seed=123323,
                 device="cuda" if torch.cuda.is_available() else "cpu",
             ),
             wandb=WandbConfig(
-                project="ES-Humanoid",
+                project="ES-HalfCheetah",
             ),
             policy=SimpleMLPConfig(
-                obs_dim=348,
-                act_dim=17,
-                hidden_dim=256,
+                obs_dim=17,
+                act_dim=6,
+                hidden_dim=64,
             ),
             env_kwargs=dict(
-                id="Humanoid-v5",
+                id="HalfCheetah-v5",
                 max_episode_steps=max_episode_steps,
                 vectorization_mode=VectorizeMode.ASYNC,
                 render_mode=None,
@@ -134,7 +136,7 @@ class Worker(evochi.Worker[WorkerState]):
         self.perturbed_params: Float[Tensor, "npop nparams"] | None = None
 
         if self.cfg.wandb.enabled:
-            wandb.init(
+            run = wandb.init(
                 id=self.cfg.wandb.id,
                 project=self.cfg.wandb.project,
                 name=self.cfg.wandb.name,
@@ -142,6 +144,8 @@ class Worker(evochi.Worker[WorkerState]):
                 entity=self.cfg.wandb.entity,
                 resume="must" if self.cfg.wandb.id else "never",
             )
+        filename = "cheetah.pt" if not self.cfg.wandb.enabled else f"cheetah_{run.name}.pt"
+        self.cfg.ckpt_path = Paths.CKPTS / filename
 
     def initialize(self) -> WorkerState:
         """First worker initializes the state."""
@@ -185,6 +189,11 @@ class Worker(evochi.Worker[WorkerState]):
                     "std_reward": rewards.std().item(),
                 }
             )
+        if self.cfg.ckpt_every is not None and epoch % self.cfg.ckpt_every == 0:
+            torch.nn.utils.vector_to_parameters(self.optim.params, self.policy.parameters())
+            fp = self.cfg.ckpt_path.with_stem(f"{self.cfg.ckpt_path.stem}_epoch_{epoch}")
+            save_policy(self.policy, model_config=self.cfg.policy, fp=fp)
+            print(f"Saved checkpoint to {fp}")
         return WorkerState(
             params=self.optim.params.cpu(),
             rng_state=self.optim.generator.get_state(),
@@ -197,13 +206,21 @@ class Worker(evochi.Worker[WorkerState]):
         self.optim.generator.set_state(self.state.rng_state)
         self.perturbed_params = self.optim.get_perturbed_params()
 
+    def on_stop(self, cancel: bool) -> None:
+        if cancel:
+            print("Worker's connection was cancelled by server.")
+        torch.nn.utils.vector_to_parameters(self.optim.params, self.policy.parameters())
+        fp = self.cfg.ckpt_path.with_stem(f"{self.cfg.ckpt_path.stem}_final")
+        save_policy(self.policy, model_config=self.cfg.policy, fp=fp)
+        print(f"Saved final parameters to {fp}")
+
 
 async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, help="Number of training epochs")
     parser.add_argument("--max_episode_steps", type=int, help="Max steps per episode")
     parser.add_argument("--hid", type=int, help="Hidden layer size")
-    # parser.add_argument("--ckpt", type=int, help="Save every N epochs. N<=0 disables saving")
+    parser.add_argument("--ckpt", type=int, help="Save every N epochs. N<=0 disables saving")
     parser.add_argument("--render-mode", type=str, help="Oneof: human, rgb_array, None")
     parser.add_argument("--server", type=str, help="IP address of the server", default="localhost:8080")
     parser.add_argument("--bs", type=int, help="Batch size", default=psutil.cpu_count(logical=True))
@@ -219,6 +236,7 @@ async def main() -> None:
     cfg.max_episode_steps = args["max_episode_steps"] or cfg.max_episode_steps
     cfg.policy.hidden_dim = args["hid"] or cfg.policy.hidden_dim
     cfg.env_kwargs["render_mode"] = args["render_mode"] or cfg.env_kwargs.get("render_mode")
+    cfg.ckpt_every = args["ckpt"]
 
     pprint(cfg)
 
@@ -230,5 +248,6 @@ async def main() -> None:
 if __name__ == "__main__":
     import multiprocessing as mp
 
-    mp.set_start_method("spawn")  # else we get warnings from gprc
+    # else we get warnings from gprc; beware if you edit this script while running with this setting, it will crash...
+    mp.set_start_method("spawn")
     asyncio.run(main())
