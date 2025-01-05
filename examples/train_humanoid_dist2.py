@@ -206,6 +206,7 @@ async def main() -> None:
     # parser.add_argument("--ckpt", type=int, help="Save every N epochs. N<=0 disables saving")
     parser.add_argument("--render-mode", type=str, help="Oneof: human, rgb_array, None")
     parser.add_argument("--server", type=str, help="IP address of the server", default="localhost:8080")
+    parser.add_argument("--bs", type=int, help="Batch size", default=psutil.cpu_count(logical=True))
     ESArgumentHandler.add_args(parser)
     WandbArgumentHandler.add_args(parser)
     args = vars(parser.parse_args())
@@ -222,7 +223,7 @@ async def main() -> None:
     pprint(cfg)
 
     channel = grpc.insecure_channel(args["server"])
-    worker = Worker(cfg, channel=channel, cores=psutil.cpu_count(logical=False))
+    worker = Worker(cfg, channel=channel, cores=args["bs"])
     await worker.start()
 
 
