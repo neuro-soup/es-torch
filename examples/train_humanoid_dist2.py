@@ -119,7 +119,7 @@ def evaluate_policy_batch(
 @dataclass
 class WorkerState:
     params: torch.Tensor
-    rng_state: torch.Tensor | None
+    rng_state: torch.ByteTensor
 
 
 class Worker(evochi.Worker[WorkerState]):
@@ -151,7 +151,7 @@ class Worker(evochi.Worker[WorkerState]):
         self.optim = ES(self.cfg.es, params=initial_params, rng_state=None)
         self.perturbed_params = self.optim.get_perturbed_params()
         return WorkerState(
-            params=initial_params,
+            params=initial_params.cpu(),
             rng_state=self.optim.generator.get_state(),
         )
 
@@ -189,7 +189,7 @@ class Worker(evochi.Worker[WorkerState]):
             )
         self.epoch += 1
         return WorkerState(
-            params=self.optim.params,
+            params=self.optim.params.cpu(),
             rng_state=self.optim.generator.get_state(),
         )
 
