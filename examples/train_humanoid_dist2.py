@@ -131,8 +131,6 @@ class Worker(evochi.Worker[WorkerState]):
         self.env = gym.make_vec(**self.cfg.env_kwargs)
         self.policy = SimpleMLP(self.cfg.policy)
         self.optim: ES | None = None
-
-        self.epoch: int = 0
         self.perturbed_params: Float[Tensor, "npop nparams"] | None = None
 
         if self.cfg.wandb.enabled:
@@ -167,7 +165,7 @@ class Worker(evochi.Worker[WorkerState]):
             env_kwargs=self.cfg.env_kwargs,
         )
         print(
-            f"(worker): Epoch {self.epoch} | Mean reward: {rewards.mean()} | Max reward: {rewards.max()} | Slices: {', '.join([f"{s.start}:{s.stop} ({s.stop-s.start})" for s in slices])}"
+            f"(worker): Epoch {epoch} | Mean reward: {rewards.mean()} | Max reward: {rewards.max()} | Slices: {', '.join([f"{s.start}:{s.stop} ({s.stop - s.start})" for s in slices])}"
         )
         return evochi.Eval.from_flat(slices, rewards.tolist())
 
@@ -187,7 +185,6 @@ class Worker(evochi.Worker[WorkerState]):
                     "std_reward": rewards.std().item(),
                 }
             )
-        self.epoch += 1
         return WorkerState(
             params=self.optim.params.cpu(),
             rng_state=self.optim.generator.get_state(),
@@ -195,7 +192,8 @@ class Worker(evochi.Worker[WorkerState]):
 
     def on_state_change(self, state: WorkerState) -> None:
         """Called when a newly joined worker receives the shared state to initialize from."""
-        self.optim.params = self.state.params.to(self.cfg.es.device)
+        if self.optim is None:
+            self.optim = ES(self.cfg.es, params=state.params, rng_state=state.rng_state)
         self.optim.generator.set_state(self.state.rng_state)
         self.perturbed_params = self.optim.get_perturbed_params()
 
@@ -231,5 +229,5 @@ async def main() -> None:
 if __name__ == "__main__":
     import multiprocessing as mp
 
-    mp.set_start_method("spawn")
+    mp.set_start_method("spawn")  # else we get warnings from gprc
     asyncio.run(main())

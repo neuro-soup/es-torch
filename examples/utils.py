@@ -94,6 +94,7 @@ class WandbArgumentHandler:
 
     @classmethod
     def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
+        config.wandb.id = args[cls.id] or config.wandb.id
         config.wandb.enabled = args[cls.enable]
         config.wandb.project = args[cls.project] or config.wandb.project
         config.wandb.name = args[cls.name] or config.wandb.name
