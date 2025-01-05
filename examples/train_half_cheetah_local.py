@@ -1,10 +1,8 @@
-"""Example usage of the `minimal.py` optim that runs on a single machine. Max reward with provided default config: ~1300 @1k steps.
-For examples with the optim from `es_torch`, see `examples/train_humanoid.py` and `examples/train_humanoid_dist.py`."""
+"""Example usage of the es-torch optim on a single machine. Avg reward with provided default config: ~3000."""
 
 from __future__ import annotations
 
 import argparse
-import multiprocessing as mp
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
@@ -17,6 +15,7 @@ from gymnasium import VectorizeMode
 from jaxtyping import Float
 from torch import Tensor
 
+from es_torch.optim import Config as ESConfig, ES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
@@ -27,7 +26,6 @@ from examples.utils import (
     reshape_params,
     save_policy,
 )
-from minimal import Config as ESConfig, ES
 
 
 @dataclass
@@ -36,7 +34,7 @@ class Config(ExperimentConfig):
     epochs: int
     max_episode_steps: int
     env_seed: int | None
-    ckpt_every: int = -1
+    ckpt_every: int | None = None
     ckpt_path: str | Path | None = None
 
     @classmethod
@@ -44,10 +42,10 @@ class Config(ExperimentConfig):
         """More or less from: https://github.com/openai/evolution-strategies-starter/blob/master/configurations/humanoid.json"""
         return cls(
             es=ESConfig(
-                npop=40,  # original uses 1440, but that's not feasible on a single reasonable machine
-                lr=0.01,
-                std=0.02,
-                weight_decay=0.005,
+                npop=30,  # original uses 1440, but that's not feasible on a single reasonable machine
+                lr=0.04,
+                std=0.025,
+                weight_decay=0.0025,
                 sampling_strategy="antithetic",
                 reward_transform="centered_rank",
                 seed=42,
@@ -65,6 +63,10 @@ class Config(ExperimentConfig):
             max_episode_steps=1000,
             env_seed=None,
         )
+
+    def __post_init__(self) -> None:
+        assert bool(self.ckpt_every) == bool(self.ckpt_path), "Both `ckpt_every` and `ckpt_path` must be set or unset."
+        assert self.ckpt_every is None or self.ckpt_every > 0, "`ckpt_every` must be a positive integer."
 
 
 @torch.inference_mode()
@@ -104,30 +106,25 @@ def evaluate_policy_batch(
             }
         )
     print(f"Mean reward: {total_rewards.mean()} | Max reward: {total_rewards.max()}")
-    return torch.tensor(total_rewards)
+    return torch.tensor(total_rewards, device=config.es.device)
 
 
 def train(config: Config) -> torch.Tensor:
     env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.npop, vectorization_mode=VectorizeMode.ASYNC)
-    initial_params = torch.nn.utils.parameters_to_vector(SimpleMLP(config.policy).parameters())
+    policy = SimpleMLP(config.policy)
+    policy.init_weights()
     optim = ES(
         config.es,
-        params=initial_params,
-        eval_fxn=lambda p: (
-            evaluate_policy_batch(
-                policy_params_batch=p,
-                env=env,
-                config=config,
-            )
-        ),
+        params=torch.nn.utils.parameters_to_vector(policy.parameters()),
     )
 
     for epoch in range(config.epochs):
-        optim.step()
+        rewards = evaluate_policy_batch(env, optim.get_perturbed_params(), config)
+        optim.step(rewards)
         print(f"Epoch {epoch + 1}/{config.epochs}")
         if config.wandb.enabled:
             wandb.log({"epoch": epoch + 1})
-        if config.ckpt_every > 0 and epoch % config.ckpt_every == 0:
+        if config.ckpt_every is not None and epoch % config.ckpt_every == 0:
             model = SimpleMLP(config.policy)
             torch.nn.utils.vector_to_parameters(optim.params, model.parameters())
             fp = config.ckpt_path.with_stem(f"{config.ckpt_path.stem}_epoch_{epoch}")
@@ -185,5 +182,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    mp.set_start_method("spawn", force=True)
     main()
