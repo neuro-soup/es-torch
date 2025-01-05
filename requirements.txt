@@ -4,5 +4,3 @@ gymnasium[mujoco]
 wandb
 imageio[ffmpeg]
 pre-commit
-grpcio
-grpcio-tools
