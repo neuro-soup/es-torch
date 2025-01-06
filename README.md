@@ -1,4 +1,51 @@
 # es-torch
 
-A clean and extensible < 80 line implementation of [Evolution Strategies as a Scalable Alternative to Reinforcement Learning](https://arxiv.org/abs/1703.03864).
+A tiny but fully functional implementation of [Evolution Strategies as a Scalable Alternative to Reinforcement Learning](https://arxiv.org/abs/1703.03864).
 
+The core algorithm is as follows:
+```python
+        noise = torch.cat([eps := torch.randn((self.cfg.npop // 2, len(self.params)), generator=self.g), -eps], 0) # antithetic sampling
+        perturbations = self.cfg.std * noise # explore in parameter space
+        rewards = self._eval_policies(self.params.unsqueeze(0) + perturbations)  # evaluate perturbed policies
+        rewards = (rewards.argsort().argsort() - ((len(rewards) - 1) / 2)) / (len(rewards) - 1) # centered rank transformation
+        gradient = self.cfg.lr / (self.cfg.npop * self.cfg.std) * torch.einsum("np,n->p", perturbations, rewards)
+        self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params # gradient ascent
+
+```
+The full implementation of this centralized version can be found at [examples/minimal.py](https://github.com/neuro-soup/es-torch/blob/main/examples/minimal.py) (37 lines), usage example at [examples/train_half_cheetah_minimal.py](https://github.com/neuro-soup/es-torch/blob/main/examples/train_half_cheetah_minimal.py) (136 lines).
+
+The optimizer at [es_torch/optim.py](https://github.com/neuro-soup/es-torch/blob/main/es_torch/optim.py) is supports distributed training.
+A distributed training example using [evochi](https://github.com/neuro-soup/evochi/tree/master) as a minimal server for sharing rewards can be found at [examples/train_half_cheetah_dist.py](https://github.com/neuro-soup/es-torch/blob/main/examples/train_half_cheetah_dist.py).
+It supports logging and resuming with wandb and checkpointing.
+A run will continue as long as at least 1 worker is running, so even if the worker that logged to wandb is stopped, you can resume it from another worker (and no information is lost, as each worker has the same information).
+
+To run the examples, first install the requirements:
+```bash
+pip install -r requirements.txt
+```
+
+The local examples can be run out of the box with the default config, e.g.:
+```bash
+python examples/train_half_cheetah_minimal.py
+```
+
+The distributed example requires launching an [evochi](https://github.com/neuro-soup/evochi/tree/master) server:
+```bash
+EVOCHI_JWT_SECRET="secret" EVOCHI_POPULATION_SIZE=1440 go run github.com/neuro-soup/evochi/cmd/evochi@latest
+```
+Note that the population size configured on the server needs to match the population size in the training script.
+
+Then execute the distributed training script on each worker, e.g.:
+```bash
+python examples/train_half_cheetah_dist.py --wandb --name myrun --server localhost:8080 --bs 50
+```
+The batch size should be set according to the workers resource (to run that many environments in parallel).
+Per default, it will use the number of logical CPUs available on the machine.
+Note that the `--wandb` flag should be used only on one of the workers.
+Get a list of available arguments by adding the `--help` flag.
+
+If checkpoints were saved during training via `--ckpt`, you can render videos of a all saved checkpoints with:
+```bash
+python examples/render.py all "HalfCheetah-v5"
+```
+or supply a specific checkpoint path to render with `--name`.
