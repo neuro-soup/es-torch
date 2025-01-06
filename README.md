@@ -40,7 +40,7 @@ Then execute the distributed training script on each worker, e.g.:
 ```bash
 python examples/train_half_cheetah_dist.py --wandb --name myrun --server localhost:8080 --bs 50
 ```
-The batch size should be set according to the workers resource (to run that many environments in parallel).
+The batch size should be set according to the workers' resources (to run that many environments in parallel).
 Per default, it will use the number of logical CPUs available on the machine.
 Note that the `--wandb` flag should be used only on one of the workers.
 Get a list of available arguments by adding the `--help` flag.
