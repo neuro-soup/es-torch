@@ -4,13 +4,12 @@ A tiny but fully functional implementation of [Evolution Strategies as a Scalabl
 
 The core algorithm is as follows:
 ```python
-        noise = torch.cat([eps := torch.randn((self.cfg.npop // 2, len(self.params)), generator=self.g), -eps], 0) # antithetic sampling
-        perturbations = self.cfg.std * noise # explore in parameter space
-        rewards = self._eval_policies(self.params.unsqueeze(0) + perturbations)  # evaluate perturbed policies
-        rewards = (rewards.argsort().argsort() - ((len(rewards) - 1) / 2)) / (len(rewards) - 1) # centered rank transformation
-        gradient = self.cfg.lr / (self.cfg.npop * self.cfg.std) * torch.einsum("np,n->p", perturbations, rewards)
-        self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params # gradient ascent
-
+noise = torch.cat([eps := torch.randn((self.cfg.npop // 2, len(self.params)), generator=self.g), -eps], 0) # antithetic sampling
+perturbations = self.cfg.std * noise # explore in parameter space
+rewards = self._eval_policies(self.params.unsqueeze(0) + perturbations)  # evaluate perturbed policies
+rewards = (rewards.argsort().argsort() - ((len(rewards) - 1) / 2)) / (len(rewards) - 1) # centered rank transformation
+gradient = self.cfg.lr / (self.cfg.npop * self.cfg.std) * torch.einsum("np,n->p", perturbations, rewards)
+self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params # gradient ascent
 ```
 The full implementation of this centralized version can be found at [examples/minimal.py](https://github.com/neuro-soup/es-torch/blob/main/examples/minimal.py) (37 lines), usage example at [examples/train_half_cheetah_minimal.py](https://github.com/neuro-soup/es-torch/blob/main/examples/train_half_cheetah_minimal.py) (136 lines).
 
@@ -54,10 +53,11 @@ or supply a specific checkpoint path to render with `--name`.
 
 ### Results
 
-Results of the training of HalfCheetah-v5 can be found here:
-TODO
-TODO sweep to examine effect of random seed...
+We trained on the [HalfCheetah-v5 gym](https://gymnasium.farama.org/environments/mujoco/half_cheetah/) for 1000 epochs with varying population sizes, and achieved average rewards of up to 4000.
+A detailed report on the training can be found here: [Wandb Report](https://wandb.ai/maxw/ES-HalfCheetah/reports/ES-HalfCheetah--VmlldzoxMDgyNTA5MQ?accessToken=mx2jsa0zjqoew8iznpjdqgvnge63l4voc9n2493dx3zxld9yvjt3p59x5n6ijqhf)
 
-One thing to note is that training with large population sizes doesn't just take much longer to train, but also takes longer to converge, though training is more stable.
-We didn't train on very large population sizes (like 1440 as in the paper) for long enough yet in order to compare the results.
-We also observed that the performance can also be dramatically different based on the random seed, so it's important to run multiple seeds to get a good estimate of the performance.
+We also conducted a sweep over over hyperparameters using wandb (see the report).
+To run the sweep yourself, you can use the following command:
+```bash
+python examples/sweep_half_cheetah.py
+```

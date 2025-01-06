@@ -105,6 +105,8 @@ def evaluate_policy_batch(
             {
                 "mean_reward": total_rewards.mean(),
                 "max_reward": total_rewards.max(),
+                "min_reward": total_rewards.min(),
+                "std_reward": total_rewards.std(),
             }
         )
     print(f"Mean reward: {total_rewards.mean()} | Max reward: {total_rewards.max()}")
