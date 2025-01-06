@@ -13,7 +13,7 @@ self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params # gr
 ```
 The full implementation of this centralized version can be found at [examples/minimal.py](https://github.com/neuro-soup/es-torch/blob/main/examples/minimal.py) (37 lines), usage example at [examples/train_half_cheetah_minimal.py](https://github.com/neuro-soup/es-torch/blob/main/examples/train_half_cheetah_minimal.py) (136 lines).
 
-The optimizer at [es_torch/optim.py](https://github.com/neuro-soup/es-torch/blob/main/es_torch/optim.py) is supports distributed training.
+The optimizer at [es_torch/optim.py](https://github.com/neuro-soup/es-torch/blob/main/es_torch/optim.py) supports distributed training.
 A distributed training example using [evochi](https://github.com/neuro-soup/evochi/tree/master) as a minimal server for sharing rewards can be found at [examples/train_half_cheetah_dist.py](https://github.com/neuro-soup/es-torch/blob/main/examples/train_half_cheetah_dist.py).
 It supports logging and resuming with wandb and checkpointing.
 A run will continue as long as at least 1 worker is running, so even if the worker that logged to wandb is stopped, you can resume it from another worker (and no information is lost, as each worker has the same information).
