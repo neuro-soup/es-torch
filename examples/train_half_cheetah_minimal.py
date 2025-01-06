@@ -43,8 +43,6 @@ class Config:
                 lr=0.04,
                 std=0.025,
                 weight_decay=0.0025,
-                sampling_strategy="antithetic",
-                reward_transform="centered_rank",
                 seed=42,
                 device="cuda" if torch.cuda.is_available() else "cpu",
             ),
@@ -120,6 +118,7 @@ def main() -> None:
     parser.add_argument("--hid", type=int, help="Hidden layer size")
     ESArgumentHandler.add_args(parser)
     args = vars(parser.parse_args())
+    args.update({"noise": "_", "reward": "_"})  # minimal optim is not configurable w/ these
 
     cfg = Config.default()
 
