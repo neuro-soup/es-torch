@@ -1,3 +1,5 @@
+"""At 1k epochs, the provided config reaches a mean reward of ~3k."""
+
 from __future__ import annotations
 
 import argparse
@@ -49,7 +51,7 @@ class Config(ExperimentConfig):
             epochs=1000,
             max_episode_steps=(max_episode_steps := 1000),
             es=ESConfig(
-                npop=1440,
+                npop=100,
                 lr=0.04,
                 std=0.025,
                 weight_decay=0.0025,
@@ -194,6 +196,11 @@ class Worker(evochi.Worker[WorkerState]):
             fp = self.cfg.ckpt_path.with_stem(f"{self.cfg.ckpt_path.stem}_epoch_{epoch}")
             save_policy(self.policy, model_config=self.cfg.policy, fp=fp)
             print(f"Saved checkpoint to {fp}")
+        if epoch == self.cfg.epochs:
+            print(
+                "Reached configured max epochs. If you forgot to set this on the server, you need to cancel the workers manually or they will keep running."
+            )
+            self.on_stop(cancel=False)
         return WorkerState(
             params=self.optim.params.cpu(),
             rng_state=self.optim.generator.get_state(),
