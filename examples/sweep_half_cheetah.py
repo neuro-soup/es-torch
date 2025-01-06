@@ -50,6 +50,9 @@ SWEEP_CFG = {
         "hidden_dim": {
             "values": [32, 64, 128, 256],
         },
+        "npop": {
+            "values": [8, 16, 32],
+        },
     },
     "early_terminate": {"type": "hyperband", "min_iter": FIRST_EVAL_EPOCH, "eta": ETA},
 }
@@ -59,8 +62,6 @@ def run_sweep() -> None:
     config = Config.default()
     config.wandb.enabled = True
     config.epochs = MAX_EPOCHS
-    config.es.npop = 40
-    config.policy.hidden_dim = 64
 
     run = wandb.init(project="ES-HalfCheetah")
     config.es.lr = run.config.lr
@@ -69,6 +70,8 @@ def run_sweep() -> None:
     config.es.sampling_strategy = run.config.sampling_strategy
     config.es.reward_transform = run.config.reward_transform
     config.es.seed = run.config.seed
+    config.policy.hidden_dim = run.config.hidden_dim
+    config.es.npop = run.config.npop
     wandb.config.update(flatten_dict(asdict(config)), allow_val_change=True)
 
     pprint(config)
