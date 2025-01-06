@@ -1,6 +1,6 @@
 # es-torch
 
-A tiny but fully functional implementation of [Evolution Strategies as a Scalable Alternative to Reinforcement Learning](https://arxiv.org/abs/1703.03864).
+A tiny but fully featured implementation of [Evolution Strategies as a Scalable Alternative to Reinforcement Learning](https://arxiv.org/abs/1703.03864).
 
 The core algorithm is as follows:
 ```python
