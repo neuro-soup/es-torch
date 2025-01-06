@@ -1,11 +1,10 @@
 import argparse
-import multiprocessing as mp
 from dataclasses import asdict
 from pprint import pprint
 
 import wandb
 
-from examples.train_humanoid import Config, train
+from examples.train_half_cheetah_local import Config, train
 from examples.utils import flatten_dict
 
 # hyperband
@@ -24,7 +23,7 @@ SWEEP_CFG = {
         "lr": {
             "distribution": "log_uniform_values",
             "min": 2e-3,
-            "max": 0.05,  # TODO higher values would work with lr decay
+            "max": 0.05,  # TODO higher values might work with lr decay
         },
         "std": {
             "distribution": "uniform",
@@ -36,18 +35,21 @@ SWEEP_CFG = {
             "min": 0.0,
             "max": 0.03,
         },
-        # "sampling_strategy": {
-        #     "values": ["antithetic", "normal"],
-        # },
-        # "reward_transform": {  # seems to have no effect
-        #     "values": ["centered_rank", "normalized"],
-        # },
-        # "hidden_dim": {
-        #     "values": [256, 512],
-        # },
-        # "seed": {  # checking if seed has an effect
-        #     "values": [42, 100, 2021],
-        # },
+        "sampling_strategy": {
+            "values": ["antithetic", "normal"],
+        },
+        "seed": {  # checking impact of seed
+            "distribution": "int_uniform",
+            "min": 1,
+            "max": 1_000_000,
+        },
+        "reward_transform": {
+            "values": ["centered_rank", "normalized"],
+        },
+        # seems to have no / little impact
+        "hidden_dim": {
+            "values": [32, 64, 128, 256],
+        },
     },
     "early_terminate": {"type": "hyperband", "min_iter": FIRST_EVAL_EPOCH, "eta": ETA},
 }
@@ -58,17 +60,15 @@ def run_sweep() -> None:
     config.wandb.enabled = True
     config.epochs = MAX_EPOCHS
     config.es.npop = 40
-    config.policy.hidden_dim = 256
-    config.es.reward_transform = "normalized"
-    config.es.sampling_strategy = "antithetic"
+    config.policy.hidden_dim = 64
 
     run = wandb.init(project="ES-HalfCheetah")
     config.es.lr = run.config.lr
     config.es.std = run.config.std
     config.es.weight_decay = run.config.weight_decay
-    # config.es.sampling_strategy = run.config.sampling_strategy
-    # config.es.reward_transform = run.config.reward_transform
-    # config.es.seed = run.config.seed
+    config.es.sampling_strategy = run.config.sampling_strategy
+    config.es.reward_transform = run.config.reward_transform
+    config.es.seed = run.config.seed
     wandb.config.update(flatten_dict(asdict(config)), allow_val_change=True)
 
     pprint(config)
@@ -82,16 +82,15 @@ def parse_args():
         "--sweep-id",
         type=str,
         default=None,
-        help="Existing sweep ID to continue. If not provided, a new sweep will be created.",
+        help="Existing sweep ID to continue / add an agent to a run. If not provided, a new sweep will be created.",
     )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
-    mp.set_start_method("spawn", force=True)
     print(f"Training will use these evaluation checkpoints (epochs): {brackets}")
     print(f"Final training length will be {MAX_EPOCHS} epochs")
 
     args = parse_args()
-    sweep_id = wandb.sweep(SWEEP_CFG, project="ES-Humanoid") if args.sweep_id is None else args.sweep_id
+    sweep_id = wandb.sweep(SWEEP_CFG, project="ES-HalfCheetah") if args.sweep_id is None else args.sweep_id
     wandb.agent(sweep_id, function=run_sweep)

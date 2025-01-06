@@ -5,4 +5,3 @@ ignore = [
     "F722", # "Syntax error in forward annotation" (issues with tensor typing)
     "F821", # "undefined name" (issues with tensor typing)
 ]
-exclude = ["es_torch/distributed/"]

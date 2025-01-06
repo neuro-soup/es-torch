@@ -29,6 +29,7 @@ class ExperimentConfig:
 
 @dataclass
 class WandbConfig:
+    id: str | None = None
     enabled: bool = False
     project: str | None = None
     name: str | None = None
@@ -61,7 +62,7 @@ class ESArgumentHandler:
         parser.add_argument(f"--{cls.random_seed}", type=int, help="Seed for noise sampling")
 
     @classmethod
-    def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
+    def update_config(cls, args: dict[str, Any], config) -> None:
         config.es.npop = args[cls.population_size] or config.es.npop
         config.es.std = args[cls.std_dev] or config.es.std
         config.es.lr = args[cls.learning_rate] or config.es.lr
@@ -75,6 +76,7 @@ class ESArgumentHandler:
 class WandbArgumentHandler:
     """Handles argument parsing and configuration for wandb logging"""
 
+    id: str = "id"
     enable: str = "wandb"
     project: str = "project"
     name: str = "name"
@@ -83,6 +85,7 @@ class WandbArgumentHandler:
 
     @classmethod
     def add_args(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(f"--{cls.id}", type=str, help="Wandb run ID. Provide only to resume a run.")
         parser.add_argument(f"--{cls.enable}", action="store_true", help="Use Weights & Biases logger")
         parser.add_argument(f"--{cls.project}", type=str, help="Name of the Weights & Biases project")
         parser.add_argument(f"--{cls.name}", type=str, help="Name for the Weights & Biases run")
@@ -90,7 +93,8 @@ class WandbArgumentHandler:
         parser.add_argument(f"--{cls.entity}", type=str, help="Wandb entity")
 
     @classmethod
-    def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
+    def update_config(cls, args: dict[str, Any], config) -> None:
+        config.wandb.id = args[cls.id] or config.wandb.id
         config.wandb.enabled = args[cls.enable]
         config.wandb.project = args[cls.project] or config.wandb.project
         config.wandb.name = args[cls.name] or config.wandb.name
