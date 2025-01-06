@@ -19,6 +19,8 @@ A distributed training example using [evochi](https://github.com/neuro-soup/evoc
 It supports logging and resuming with wandb and checkpointing.
 A run will continue as long as at least 1 worker is running, so even if the worker that logged to wandb is stopped, you can resume it from another worker (and no information is lost, as each worker has the same information).
 
+### Usage
+
 To run the examples, first install the requirements:
 ```bash
 pip install -r requirements.txt
@@ -49,3 +51,13 @@ If checkpoints were saved during training via `--ckpt`, you can render videos of
 python examples/render.py all "HalfCheetah-v5"
 ```
 or supply a specific checkpoint path to render with `--name`.
+
+### Results
+
+Results of the training of HalfCheetah-v5 can be found here:
+TODO
+TODO sweep to examine effect of random seed...
+
+One thing to note is that training with large population sizes doesn't just take much longer to train, but also takes longer to converge, though training is more stable.
+We didn't train on very large population sizes (like 1440 as in the paper) for long enough yet in order to compare the results.
+We also observed that the performance can also be dramatically different based on the random seed, so it's important to run multiple seeds to get a good estimate of the performance.
