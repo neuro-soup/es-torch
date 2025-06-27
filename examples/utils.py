@@ -56,9 +56,7 @@ class ESArgumentHandler:
         parser.add_argument(f"--{cls.learning_rate}", type=float, help="Learning rate")
         parser.add_argument(f"--{cls.weight_decay}", type=float, help="Weight decay")
         parser.add_argument(f"--{cls.noise_strat}", type=str, help="Noise sampling strategy", choices=SAMPLING_STRATEGIES.keys())
-        parser.add_argument(
-            f"--{cls.reward_strat}", type=str, help="Reward normalization strategy", choices=REWARD_TRANSFORMS.keys()
-        )
+        parser.add_argument(f"--{cls.reward_strat}", type=str, help="Reward normalization strategy", choices=REWARD_TRANSFORMS.keys())
         parser.add_argument(f"--{cls.random_seed}", type=int, help="Seed for noise sampling")
 
     @classmethod

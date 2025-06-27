@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import partial
 from typing import Literal, Protocol
 
 import torch
@@ -8,7 +7,7 @@ from torch import Tensor
 
 
 class Sampler(Protocol):
-    def __call__(self, n_pop: int, n_params: int, generator: torch.Generator) -> torch.Tensor: ...
+    def __call__(self, npop: int, nparams: int, g: torch.Generator) -> Float[Tensor, "npop nparams"]: ...
 
 
 class RewardTransform(Protocol):
@@ -39,8 +38,8 @@ class Config:
     device: str
 
     def __post_init__(self) -> None:
-        assert 0 <= self.weight_decay < 1, "Weight decay should be in [0, 1)."
-        assert (self.npop % 2 == 0) or not (self.sampling_strategy == "antithetic"), "Number of workers should be even."
+        assert 0 <= self.weight_decay < 1, "weight_decay should be in [0, 1)"
+        assert (self.npop % 2 == 0) or not (self.sampling_strategy == "antithetic"), "npop should be even for antithetic sampling"
 
 
 class ES:
@@ -52,15 +51,10 @@ class ES:
     ) -> None:
         self.cfg = config
         self.params = params.to(config.device)
-        self.generator = torch.Generator(device="cpu").manual_seed(config.seed)  # CPU: reproducibility & easier sharing
+        self.generator = torch.Generator(device="cpu").manual_seed(config.seed)  # CPU: reproducibility & easier serialization
         if rng_state is not None:
             self.generator.set_state(rng_state)
-        self._get_noise = partial(
-            SAMPLING_STRATEGIES[config.sampling_strategy],
-            config.npop,
-            len(params),
-            self.generator,
-        )
+        self._sample: Sampler = SAMPLING_STRATEGIES[config.sampling_strategy]
         self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
         self._perturbed_params: Float[Tensor, "npop params"] | None = None
 
@@ -72,6 +66,6 @@ class ES:
 
     @torch.inference_mode()
     def get_perturbed_params(self) -> Float[Tensor, "npop params"]:
-        noise = self._get_noise().to(self.cfg.device)
+        noise = self._sample(self.cfg.npop, len(self.params), self.generator).to(self.cfg.device)
         self._perturbed_params = self.params.unsqueeze(0) + self.cfg.std * noise
         return self._perturbed_params.squeeze()

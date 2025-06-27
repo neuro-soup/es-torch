@@ -1,4 +1,4 @@
-line-length = 130
+line-length = 140
 target-version = "py312"
 fix = true
 ignore = [

@@ -21,12 +21,12 @@ A lightweight PyTorch implementation of Evolution Strategies (ES) based on the p
 ### 💡 Core Algorithm
 
 ```python
-noise = torch.cat([eps := torch.randn((self.cfg.npop // 2, len(self.params)), generator=self.g), -eps], 0) # antithetic sampling
-perturbations = self.cfg.std * noise # explore in parameter space
-rewards = self._eval_policies(self.params.unsqueeze(0) + perturbations)  # evaluate perturbed policies
+noise = torch.cat([eps := torch.randn((npop // 2, len(params))), -eps], 0) # antithetic sampling
+perturbations = std * noise # explore in parameter space
+rewards = eval_policies(params.unsqueeze(0) + perturbations)  # evaluate perturbed policies
 rewards = (rewards.argsort().argsort() - ((len(rewards) - 1) / 2)) / (len(rewards) - 1) # centered rank transformation
-gradient = self.cfg.lr / (self.cfg.npop * self.cfg.std) * torch.einsum("np,n->p", perturbations, rewards)
-self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params # gradient ascent
+gradient = lr / (npop * std) * torch.einsum("np,n->p", perturbations, rewards)
+params += gradient - lr * weight_decay * params # gradient ascent
 ```
 
 ### 📦 Implementation Overview
