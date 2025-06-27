@@ -22,6 +22,9 @@ from jaxtyping import Float
 from torch import Tensor, nn
 
 from es_torch.optim import Config as ESConfig, ES
+from es_torch.sampling import SAMPLERS
+from es_torch.fitness_shaping import TRANSFORMS
+from es_torch.schedules import SCHEDULES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
@@ -29,6 +32,7 @@ from examples.utils import (
     Paths,
     WandbArgumentHandler,
     WandbConfig,
+    create_es,
     reshape_params,
     save_policy,
 )
@@ -54,15 +58,17 @@ class Config(ExperimentConfig):
                 npop=100,
                 lr=0.04,
                 std=0.025,
-                weight_decay=0.0025,
-                sampling_strategy="antithetic",
-                reward_transform="centered_rank",
                 seed=123323,
                 device="cuda" if torch.cuda.is_available() else "cpu",
             ),
             wandb=WandbConfig(
                 project="ES-HalfCheetah",
             ),
+            sampling_strategy="antithetic",
+            reward_transform="centered_rank",
+            std_schedule="constant",
+            optim="SGD",
+            optim_kwargs={"weight_decay": 0.0025},
             policy=SimpleMLPConfig(
                 obs_dim=17,
                 act_dim=6,
@@ -152,7 +158,7 @@ class Worker(evochi.Worker[WorkerState]):
     def initialize(self) -> WorkerState:
         """First worker initializes the state."""
         initial_params = nn.utils.parameters_to_vector(self.policy.parameters())
-        self.optim = ES(self.cfg.es, params=initial_params, rng_state=None)
+        self.optim = create_es(self.cfg, params=initial_params, rng_state=None)
         self.perturbed_params = self.optim.get_perturbed_params()
         return WorkerState(
             params=initial_params.cpu(),
@@ -209,7 +215,7 @@ class Worker(evochi.Worker[WorkerState]):
     def on_state_change(self, state: WorkerState) -> None:
         """Called when a newly joined worker receives the shared state to initialize from."""
         if self.optim is None:
-            self.optim = ES(self.cfg.es, params=state.params, rng_state=state.rng_state)
+            self.optim = create_es(self.cfg, params=state.params, rng_state=state.rng_state)
         self.optim.generator.set_state(self.state.rng_state)
         self.perturbed_params = self.optim.get_perturbed_params()
 

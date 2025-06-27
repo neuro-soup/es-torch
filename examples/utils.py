@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +10,10 @@ import torch
 from jaxtyping import Float
 from torch import Tensor, nn
 
-from es_torch.optim import Config as ESConfig, REWARD_TRANSFORMS, SAMPLING_STRATEGIES
+from es_torch.optim import Config as ESConfig, ES
+from es_torch.sampling import SAMPLERS
+from es_torch.fitness_shaping import TRANSFORMS
+from es_torch.schedules import SCHEDULES
 
 
 class Paths:
@@ -25,6 +28,14 @@ class Paths:
 class ExperimentConfig:
     es: ESConfig
     wandb: WandbConfig
+
+    sampling_strategy: str
+    reward_transform: str
+    std_schedule: str
+    optim: str
+
+    std_schedule_kwargs: dict = field(default_factory=dict)
+    optim_kwargs: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -55,8 +66,8 @@ class ESArgumentHandler:
         parser.add_argument(f"--{cls.std_dev}", type=float, help="Standard deviation of noise")
         parser.add_argument(f"--{cls.learning_rate}", type=float, help="Learning rate")
         parser.add_argument(f"--{cls.weight_decay}", type=float, help="Weight decay")
-        parser.add_argument(f"--{cls.noise_strat}", type=str, help="Noise sampling strategy", choices=SAMPLING_STRATEGIES.keys())
-        parser.add_argument(f"--{cls.reward_strat}", type=str, help="Reward normalization strategy", choices=REWARD_TRANSFORMS.keys())
+        parser.add_argument(f"--{cls.noise_strat}", type=str, help="Noise sampling strategy", choices=SAMPLERS.keys())
+        parser.add_argument(f"--{cls.reward_strat}", type=str, help="Reward normalization strategy", choices=TRANSFORMS.keys())
         parser.add_argument(f"--{cls.random_seed}", type=int, help="Seed for noise sampling")
 
     @classmethod
@@ -119,7 +130,7 @@ def reshape_params(params_flat: Float[Tensor, "npop params"], model: nn.Module) 
 def save_policy(
     model: nn.Module,
     model_config: Any,
-    fp: str | Path,
+    fp: Path,
 ) -> None:
     """Save a policy network with its configuration object to a checkpoint."""
     state = {
@@ -151,7 +162,7 @@ def load_policy(
 def flatten_dict(d: dict) -> dict:
     """{1: {2: 3}, 4: 5} -> {2: 3, 4: 5}"""
     flat = {k: v for k, v in d.items() if not isinstance(v, dict)}
-    for k, v in d.items():
+    for _, v in d.items():
         if isinstance(v, dict):
             flat.update(flatten_dict(v))
     return flat
@@ -159,3 +170,13 @@ def flatten_dict(d: dict) -> dict:
 
 def short_uuid(n: int = 8) -> str:
     return str(uuid.uuid4())[:n]
+
+
+def create_es(exp_config: ExperimentConfig, params: Tensor, rng_state: torch.ByteTensor | None = None) -> ES:
+    """Factory function to create ES optimizer from experiment config."""
+    sampler = SAMPLERS[exp_config.sampling_strategy]
+    transform = TRANSFORMS[exp_config.reward_transform]
+    std_schedule = SCHEDULES[exp_config.std_schedule](exp_config.es.std, **exp_config.std_schedule_kwargs)
+    optim_class = getattr(torch.optim, exp_config.optim)
+    optim = optim_class([params], lr=1.0, **exp_config.optim_kwargs)
+    return ES(exp_config.es, params, sampler, transform, optim, std_schedule, rng_state)

@@ -17,7 +17,7 @@ from gymnasium import VectorizeMode
 from jaxtyping import Float
 from torch import Tensor
 
-from es_torch.optim import Config as ESConfig, ES
+from es_torch.optim import Config as ESConfig
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
     ESArgumentHandler,
@@ -25,6 +25,7 @@ from examples.utils import (
     Paths,
     WandbArgumentHandler,
     WandbConfig,
+    create_es,
     reshape_params,
     save_policy,
 )
@@ -47,15 +48,17 @@ class Config(ExperimentConfig):
                 npop=30,  # original uses 1440, but that's not feasible on a single reasonable machine
                 lr=0.04,
                 std=0.025,
-                weight_decay=0.0025,
-                sampling_strategy="antithetic",
-                reward_transform="centered_rank",
                 seed=123323,
                 device="cuda" if torch.cuda.is_available() else "cpu",
             ),
             wandb=WandbConfig(
                 project="ES-HalfCheetah",
             ),
+            sampling_strategy="antithetic",
+            reward_transform="centered_rank",
+            std_schedule="constant",
+            optim="SGD",
+            optim_kwargs={"weight_decay": 0.0025},
             policy=SimpleMLPConfig(
                 obs_dim=17,
                 act_dim=6,
@@ -117,8 +120,8 @@ def train(config: Config) -> torch.Tensor:
     env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.npop, vectorization_mode=VectorizeMode.ASYNC)
     policy = SimpleMLP(config.policy)
     policy.init_weights()
-    optim = ES(
-        config.es,
+    optim = create_es(
+        config,
         params=torch.nn.utils.parameters_to_vector(policy.parameters()),
     )
 

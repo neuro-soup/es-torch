@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Protocol
 
 import torch
 from jaxtyping import Float
@@ -14,16 +14,8 @@ class RewardTransform(Protocol):
     def __call__(self, rewards: Float[Tensor, "npop"]) -> Float[Tensor, "npop"]: ...
 
 
-type SamplingStrategy = Literal["antithetic", "normal"]
-SAMPLING_STRATEGIES: dict[SamplingStrategy, Sampler] = {
-    "antithetic": lambda npop, nparams, g: torch.cat([eps := torch.randn((npop // 2, nparams), generator=g), -eps], 0),
-    "normal": lambda npop, nparams, g: torch.randn((npop, nparams), generator=g),
-}
-type RewardTransformStrategy = Literal["centered_rank", "normalized"]
-REWARD_TRANSFORMS: dict[RewardTransformStrategy, RewardTransform] = {
-    "centered_rank": lambda rewards: (rewards.argsort().argsort() - ((len(rewards) - 1) / 2)) / (len(rewards) - 1),
-    "normalized": lambda rewards: (rewards - rewards.mean()) / rewards.std(),
-}
+class StdSchedule(Protocol):
+    def __call__(self, step: int) -> float: ...
 
 
 @dataclass
@@ -31,15 +23,8 @@ class Config:
     npop: int
     lr: float
     std: float
-    weight_decay: float
-    sampling_strategy: SamplingStrategy
-    reward_transform: RewardTransformStrategy
     seed: int
     device: str
-
-    def __post_init__(self) -> None:
-        assert 0 <= self.weight_decay < 1, "weight_decay should be in [0, 1)"
-        assert (self.npop % 2 == 0) or not (self.sampling_strategy == "antithetic"), "npop should be even for antithetic sampling"
 
 
 class ES:
@@ -47,6 +32,10 @@ class ES:
         self,
         config: Config,
         params: Float[Tensor, "params"],
+        sampler: Sampler,
+        reward_transform: RewardTransform,
+        optim: torch.optim.Optimizer,
+        std_schedule: StdSchedule | None = None,
         rng_state: torch.ByteTensor | None = None,
     ) -> None:
         self.cfg = config
@@ -54,18 +43,26 @@ class ES:
         self.generator = torch.Generator(device="cpu").manual_seed(config.seed)  # CPU: reproducibility & easier serialization
         if rng_state is not None:
             self.generator.set_state(rng_state)
-        self._sample: Sampler = SAMPLING_STRATEGIES[config.sampling_strategy]
-        self._transform_reward = REWARD_TRANSFORMS[config.reward_transform]
+        self._sample: Sampler = sampler
+        self._transform_reward: RewardTransform = reward_transform
+        self._std_schedule: StdSchedule = std_schedule or (lambda step: config.std)
+        self._step: int = 0
         self._perturbed_params: Float[Tensor, "npop params"] | None = None
+        self._optim = optim
+        assert all(pg.get("lr", 1.0) == 1.0 for pg in self._optim.param_groups), "Optim lr must be 1.0; lr is controlled by ES config.lr"
 
     @torch.inference_mode()
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
-        gradient = self.cfg.lr / (self.cfg.npop * self.cfg.std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
-        self.params += gradient - self.cfg.lr * self.cfg.weight_decay * self.params
+        std, self._step = self._std_schedule(self._step), self._step + 1
+        gradient = self.cfg.lr / (self.cfg.npop * std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
+        self.params.grad = -gradient  # gradient ascent
+        self._optim.step()
+        self._optim.zero_grad()
 
     @torch.inference_mode()
     def get_perturbed_params(self) -> Float[Tensor, "npop params"]:
-        noise = self._sample(self.cfg.npop, len(self.params), self.generator).to(self.cfg.device)
-        self._perturbed_params = self.params.unsqueeze(0) + self.cfg.std * noise
+        noise = self._sample(npop=self.cfg.npop, nparams=len(self.params), g=self.generator).to(self.cfg.device)
+        std = self._std_schedule(self._step)
+        self._perturbed_params = self.params.unsqueeze(0) + std * noise
         return self._perturbed_params.squeeze()
