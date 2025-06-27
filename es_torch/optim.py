@@ -14,7 +14,7 @@ class RewardTransform(Protocol):
     def __call__(self, rewards: Float[Tensor, "npop"]) -> Float[Tensor, "npop"]: ...
 
 
-class StdSchedule(Protocol):
+class Schedule(Protocol):
     def __call__(self, step: int) -> float: ...
 
 
@@ -35,7 +35,8 @@ class ES:
         sampler: Sampler,
         reward_transform: RewardTransform,
         optim: torch.optim.Optimizer,
-        std_schedule: StdSchedule | None = None,
+        std_schedule: Schedule | None = None,
+        lr_schedule: Schedule | None = None,
         rng_state: torch.ByteTensor | None = None,
     ) -> None:
         self.cfg = config
@@ -45,7 +46,8 @@ class ES:
             self.generator.set_state(rng_state)
         self._sample: Sampler = sampler
         self._transform_reward: RewardTransform = reward_transform
-        self._std_schedule: StdSchedule = std_schedule or (lambda step: config.std)
+        self._std_schedule: Schedule = std_schedule or (lambda step: config.std)
+        self._lr_schedule: Schedule = lr_schedule or (lambda step: config.lr)
         self._step: int = 0
         self._perturbed_params: Float[Tensor, "npop params"] | None = None
         self._optim = optim
@@ -54,8 +56,10 @@ class ES:
     @torch.inference_mode()
     def step(self, rewards: Float[Tensor, "npop"]) -> None:
         rewards = self._transform_reward(rewards)
-        std, self._step = self._std_schedule(self._step), self._step + 1
-        gradient = self.cfg.lr / (self.cfg.npop * std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
+        std = self._std_schedule(self._step)
+        lr = self._lr_schedule(self._step)
+        self._step += 1
+        gradient = lr / (self.cfg.npop * std) * torch.einsum("np,n->p", self._perturbed_params, rewards)
         self.params.grad = -gradient  # gradient ascent
         self._optim.step()
         self._optim.zero_grad()

@@ -64,6 +64,9 @@ SWEEP_CFG = {
         "std_schedule": {
             "value": "constant",
         },
+        "lr_schedule": {
+            "value": "constant",
+        },
         "seed": {
             "values": [42, 123, 456],  # Test a few seeds
         },
@@ -88,6 +91,7 @@ def run_sweep() -> None:
     config.sampling_strategy = run.config.sampling_strategy
     config.reward_transform = run.config.reward_transform
     config.std_schedule = run.config.std_schedule
+    config.lr_schedule = run.config.lr_schedule
     config.optim = run.config.optim
     
     # Build optimizer kwargs based on optimizer type

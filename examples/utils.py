@@ -32,9 +32,11 @@ class ExperimentConfig:
     sampling_strategy: str
     reward_transform: str
     std_schedule: str
+    lr_schedule: str
     optim: str
 
     std_schedule_kwargs: dict = field(default_factory=dict)
+    lr_schedule_kwargs: dict = field(default_factory=dict)
     optim_kwargs: dict = field(default_factory=dict)
 
 
@@ -177,6 +179,7 @@ def create_es(exp_config: ExperimentConfig, params: Tensor, rng_state: torch.Byt
     sampler = SAMPLERS[exp_config.sampling_strategy]
     transform = TRANSFORMS[exp_config.reward_transform]
     std_schedule = SCHEDULES[exp_config.std_schedule](exp_config.es.std, **exp_config.std_schedule_kwargs)
+    lr_schedule = SCHEDULES[exp_config.lr_schedule](exp_config.es.lr, **exp_config.lr_schedule_kwargs)
     optim_class = getattr(torch.optim, exp_config.optim)
     optim = optim_class([params], lr=1.0, **exp_config.optim_kwargs)
-    return ES(exp_config.es, params, sampler, transform, optim, std_schedule, rng_state)
+    return ES(exp_config.es, params, sampler, transform, optim, std_schedule, lr_schedule, rng_state)

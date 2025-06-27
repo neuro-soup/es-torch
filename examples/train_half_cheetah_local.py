@@ -57,6 +57,7 @@ class Config(ExperimentConfig):
             sampling_strategy="antithetic",
             reward_transform="centered_rank",
             std_schedule="constant",
+            lr_schedule="constant",
             optim="SGD",
             optim_kwargs={"weight_decay": 0.0025},
             policy=SimpleMLPConfig(

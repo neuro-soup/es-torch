@@ -1,16 +1,16 @@
 import math
 
-from es_torch.optim import StdSchedule
+from es_torch.optim import Schedule
 
 
-def constant(std: float) -> StdSchedule:
+def constant(value: float) -> Schedule:
     def schedule(step: int) -> float:
-        return std
+        return value
 
     return schedule
 
 
-def linear(init_value: float, end_value: float, decay_steps: int) -> StdSchedule:
+def linear(init_value: float, end_value: float, decay_steps: int) -> Schedule:
     def schedule(step: int) -> float:
         if step >= decay_steps:
             return end_value
@@ -20,7 +20,7 @@ def linear(init_value: float, end_value: float, decay_steps: int) -> StdSchedule
     return schedule
 
 
-def cosine(init_value: float, end_value: float, decay_steps: int) -> StdSchedule:
+def cosine(init_value: float, end_value: float, decay_steps: int) -> Schedule:
     def schedule(step: int) -> float:
         if step >= decay_steps:
             return end_value

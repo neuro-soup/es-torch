@@ -57,6 +57,14 @@ SWEEP_CFG = {
             "min": 0.1,
             "max": 1.0,
         },
+        "lr_schedule": {
+            "values": ["constant", "linear", "cosine"],
+        },
+        "lr_decay_factor": {  # end_value = lr * lr_decay_factor
+            "distribution": "uniform",
+            "min": 0.1,
+            "max": 1.0,
+        },
         "hidden_dim": {
             "values": [32, 64, 128, 256],
         },
@@ -82,12 +90,20 @@ def run_sweep() -> None:
     config.sampling_strategy = run.config.sampling_strategy
     config.reward_transform = run.config.reward_transform
     config.std_schedule = run.config.std_schedule
+    config.lr_schedule = run.config.lr_schedule
     config.optim = run.config.optim
     config.optim_kwargs = {"weight_decay": run.config.weight_decay}
 
     if config.std_schedule in ["linear", "cosine"]:
         end_value = config.es.std * run.config.std_decay_factor
         config.std_schedule_kwargs = {
+            "end_value": end_value,
+            "decay_steps": config.epochs,
+        }
+    
+    if config.lr_schedule in ["linear", "cosine"]:
+        end_value = config.es.lr * run.config.lr_decay_factor
+        config.lr_schedule_kwargs = {
             "end_value": end_value,
             "decay_steps": config.epochs,
         }
