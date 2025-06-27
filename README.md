@@ -36,9 +36,14 @@ params += gradient - lr * weight_decay * params # gradient ascent
 
 ### Usage
 
-To run the examples, first install the requirements:
+To use the optim:
 ```bash
-pip install -r requirements.txt
+uv sync
+```
+
+For experiments and tests:
+```bash
+uv sync --all-extras
 ```
 
 The local examples can be run out of the box with the default config, e.g.:

@@ -1,6 +1,9 @@
-- re-ru
-- uv
-- optional test deps, train script deps
-- run extended sweep with new cfgs
-- pypi?
+- [x] uv setup with minimal pyproject.toml
+- [x] create sweep scripts for new features:
+  - sweep_optimizers.py - compare SGD, Adam, AdamW, RMSprop
+  - sweep_schedules.py - compare constant, linear, cosine std schedules
+  - updated sweep_half_cheetah.py for new config structure
+- [ ] run extended sweeps with new configs
+- [ ] v1.0 release prep
+- [ ] pypi publishing
 

@@ -30,11 +30,6 @@ SWEEP_CFG = {
             "min": 0.001,
             "max": 0.04,
         },
-        "weight_decay": {
-            "distribution": "uniform",
-            "min": 0.0,
-            "max": 0.03,
-        },
         "sampling_strategy": {
             "values": ["antithetic", "normal"],
         },
@@ -46,7 +41,22 @@ SWEEP_CFG = {
         "reward_transform": {
             "values": ["centered_rank", "normalized"],
         },
-        # seems to have no / little impact
+        "optim": {
+            "values": ["SGD", "Adam", "AdamW"],
+        },
+        "weight_decay": {
+            "distribution": "uniform",
+            "min": 0.0,
+            "max": 0.03,
+        },
+        "std_schedule": {
+            "values": ["constant", "linear", "cosine"],
+        },
+        "std_decay_factor": {  # end_value = std * std_decay_factor
+            "distribution": "uniform",
+            "min": 0.1,
+            "max": 1.0,
+        },
         "hidden_dim": {
             "values": [32, 64, 128, 256],
         },
@@ -64,14 +74,26 @@ def run_sweep() -> None:
     config.epochs = MAX_EPOCHS
 
     run = wandb.init(project="ES-HalfCheetah")
+
     config.es.lr = run.config.lr
     config.es.std = run.config.std
-    config.es.weight_decay = run.config.weight_decay
-    config.es.sampling_strategy = run.config.sampling_strategy
-    config.es.reward_transform = run.config.reward_transform
     config.es.seed = run.config.seed
-    config.policy.hidden_dim = run.config.hidden_dim
     config.es.npop = run.config.npop
+    config.sampling_strategy = run.config.sampling_strategy
+    config.reward_transform = run.config.reward_transform
+    config.std_schedule = run.config.std_schedule
+    config.optim = run.config.optim
+    config.optim_kwargs = {"weight_decay": run.config.weight_decay}
+
+    if config.std_schedule in ["linear", "cosine"]:
+        end_value = config.es.std * run.config.std_decay_factor
+        config.std_schedule_kwargs = {
+            "end_value": end_value,
+            "decay_steps": config.epochs,
+        }
+
+    config.policy.hidden_dim = run.config.hidden_dim
+
     wandb.config.update(flatten_dict(asdict(config)), allow_val_change=True)
 
     pprint(config)
