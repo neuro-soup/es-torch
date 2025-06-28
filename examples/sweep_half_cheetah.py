@@ -9,7 +9,7 @@ from examples.utils import flatten_dict
 
 # hyperband
 FIRST_EVAL_EPOCH = 25
-NUM_BRACKETS = 6
+NUM_BRACKETS = 5
 ETA = 2  # keep 1/eta runs each bracket
 brackets = [FIRST_EVAL_EPOCH * (ETA**i) for i in range(NUM_BRACKETS)]
 MAX_EPOCHS = brackets[-1]
@@ -23,7 +23,7 @@ SWEEP_CFG = {
         "lr": {
             "distribution": "log_uniform_values",
             "min": 2e-3,
-            "max": 0.05,  # TODO higher values might work with lr decay
+            "max": 0.1,
         },
         "std": {
             "distribution": "uniform",
@@ -100,7 +100,7 @@ def run_sweep() -> None:
             "end_value": end_value,
             "decay_steps": config.epochs,
         }
-    
+
     if config.lr_schedule in ["linear", "cosine"]:
         end_value = config.es.lr * run.config.lr_decay_factor
         config.lr_schedule_kwargs = {

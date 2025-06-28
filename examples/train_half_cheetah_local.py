@@ -116,6 +116,8 @@ def evaluate_policy_batch(
 
 
 def train(config: Config) -> torch.Tensor:
+    torch.manual_seed(config.es.seed)
+
     env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.npop, vectorization_mode=VectorizeMode.ASYNC)
     policy = SimpleMLP(config.policy)
     policy.init_weights()
@@ -126,13 +128,13 @@ def train(config: Config) -> torch.Tensor:
         optim.step(rewards)
         if lr_scheduler is not None:
             lr_scheduler.step()
-        print(f"Epoch {epoch + 1}/{config.epochs} | lr: {optim.get_current_lr():.6f} | std: {optim.get_current_std():.6f}")
+        print(f"Epoch {epoch + 1}/{config.epochs} | lr: {optim.lr:.6f} | std: {optim.std:.6f}")
         if config.wandb.enabled:
             wandb.log(
                 {
                     "epoch": epoch + 1,
-                    "lr": optim.get_current_lr(),
-                    "std": optim.get_current_std(),
+                    "lr": optim.lr,
+                    "std": optim.std,
                 }
             )
         if config.ckpt_every is not None and epoch % config.ckpt_every == 0:
@@ -161,7 +163,15 @@ def main() -> None:
     cfg.policy.hidden_dim = args["hid"] or cfg.policy.hidden_dim
 
     if cfg.wandb.enabled:
-        run = wandb.init(project=cfg.wandb.project, name=cfg.wandb.name, tags=cfg.wandb.tags, entity=cfg.wandb.entity, config=vars(cfg))
+        run = wandb.init(
+            project=cfg.wandb.project,
+            name=cfg.wandb.name,
+            tags=cfg.wandb.tags,
+            entity=cfg.wandb.entity,
+            config=vars(cfg),
+            settings=wandb.Settings(code_dir="."),
+        )
+        run.log_code(".")
 
     filename = "cheetah.pt" if not cfg.wandb.enabled else f"cheetah_{run.name}.pt"
     cfg.ckpt_path = Paths.CKPTS / filename

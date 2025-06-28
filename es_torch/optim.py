@@ -58,15 +58,15 @@ class ES:
         self._optim.step()
         self._optim.zero_grad()
 
-    def get_current_lr(self) -> float:
-        """Get current learning rate from optimizer."""
-        return self._optim.param_groups[0]["lr"]
-
-    def get_current_std(self) -> float:
-        """Get current std from schedule."""
-        return self._std_schedule(self._step - 1)  # -1 because we already incremented
-
     def get_perturbed_params(self) -> Float[Tensor, "npop params"]:
         self._noise = self._sample(npop=self.cfg.npop, nparams=self.nparams, g=self.generator).to(self.cfg.device)
         std = self._std_schedule(self._step)
         return self.params.unsqueeze(0) + std * self._noise
+
+    @property
+    def lr(self) -> float:
+        return self._optim.param_groups[0]["lr"]
+
+    @property
+    def std(self) -> float:
+        return self._std_schedule(self._step - 1)  # -1 because we already incremented

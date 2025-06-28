@@ -149,7 +149,9 @@ class Worker(evochi.Worker[WorkerState]):
                 tags=self.cfg.wandb.tags,
                 entity=self.cfg.wandb.entity,
                 resume="must" if self.cfg.wandb.id else "never",
+                settings=wandb.Settings(code_dir="."),
             )
+            run.log_code(".")
         filename = "cheetah.pt" if not self.cfg.wandb.enabled else f"cheetah_{run.name}.pt"
         self.cfg.ckpt_path = Paths.CKPTS / filename
 
@@ -186,7 +188,7 @@ class Worker(evochi.Worker[WorkerState]):
             self.lr_scheduler.step()
         self.perturbed_params = self.optim.get_perturbed_params()  # for the next step
         print(
-            f"epoch {epoch}/{self.cfg.epochs}: mean reward {np.mean(rewards)} | max reward {np.max(rewards)} | lr: {self.optim.get_current_lr():.6f} | std: {self.optim.get_current_std():.6f}"
+            f"epoch {epoch}/{self.cfg.epochs}: mean reward {np.mean(rewards)} | max reward {np.max(rewards)} | lr: {self.optim.lr:.6f} | std: {self.optim.std:.6f}"
         )
         if self.cfg.wandb.enabled:
             rewards = torch.tensor(rewards)
@@ -197,8 +199,8 @@ class Worker(evochi.Worker[WorkerState]):
                     "max_reward": rewards.max().item(),
                     "min_reward": rewards.min().item(),
                     "std_reward": rewards.std().item(),
-                    "lr": self.optim.get_current_lr(),
-                    "std": self.optim.get_current_std(),
+                    "lr": self.optim.lr,
+                    "std": self.optim.std,
                 }
             )
         if self.cfg.ckpt_every is not None and epoch % self.cfg.ckpt_every == 0:
