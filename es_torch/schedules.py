@@ -3,9 +3,9 @@ import math
 from es_torch.optim import Schedule
 
 
-def constant(value: float) -> Schedule:
+def constant(init_value: float) -> Schedule:
     def schedule(step: int) -> float:
-        return value
+        return init_value
 
     return schedule
 
@@ -35,4 +35,3 @@ SCHEDULES = {
     "linear": linear,
     "cosine": cosine,
 }
-

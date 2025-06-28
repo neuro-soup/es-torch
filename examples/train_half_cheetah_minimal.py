@@ -4,7 +4,6 @@ For examples with the optim from `es_torch`, see `examples/train_humanoid.py` an
 
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
@@ -17,10 +16,7 @@ from jaxtyping import Float
 from torch import Tensor
 
 from examples.policies import SimpleMLP, SimpleMLPConfig
-from examples.utils import (
-    ESArgumentHandler,
-    reshape_params,
-)
+from examples.utils import reshape_params
 from minimal import Config as ESConfig, ES
 
 
@@ -104,7 +100,6 @@ def train(config: Config) -> torch.Tensor:
             )
         ),
     )
-
     for epoch in range(config.epochs):
         optim.step()
         print(f"Epoch {epoch + 1}/{config.epochs}")
@@ -112,23 +107,8 @@ def train(config: Config) -> torch.Tensor:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, help="Number of training epochs")
-    parser.add_argument("--max_episode_steps", type=int, help="Max steps per episode")
-    parser.add_argument("--hid", type=int, help="Hidden layer size")
-    ESArgumentHandler.add_args(parser)
-    args = vars(parser.parse_args())
-    args.update({"noise": "_", "reward": "_"})  # minimal optim is not configurable w/ these
-
     cfg = Config.default()
-
-    ESArgumentHandler.update_config(args, cfg)
-    cfg.epochs = args["epochs"] or cfg.epochs
-    cfg.max_episode_steps = args["max_episode_steps"] or cfg.max_episode_steps
-    cfg.policy.hidden_dim = args["hid"] or cfg.policy.hidden_dim
-
     pprint(cfg)
-
     train(cfg)
 
 

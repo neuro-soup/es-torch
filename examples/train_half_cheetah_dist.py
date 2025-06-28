@@ -22,15 +22,12 @@ from jaxtyping import Float
 from torch import Tensor, nn
 
 from es_torch.optim import Config as ESConfig, ES
-from es_torch.sampling import SAMPLERS
-from es_torch.fitness_shaping import TRANSFORMS
-from es_torch.schedules import SCHEDULES
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
-    ESArgumentHandler,
+    TrainArgHandler,
     ExperimentConfig,
     Paths,
-    WandbArgumentHandler,
+    WandbArgHandler,
     WandbConfig,
     create_es,
     reshape_params,
@@ -40,13 +37,10 @@ from examples.utils import (
 
 @dataclass
 class Config(ExperimentConfig):
-    epochs: int
-    max_episode_steps: int
     policy: SimpleMLPConfig
     ckpt_every: int | None = None
     ckpt_path: str | Path | None = None
     env_kwargs: dict[str, Any] = dataclasses.field(default_factory=dict)
-    env_seed: int | None = None  # different from ESConfig.seed
 
     @classmethod
     def default(cls) -> Config:
@@ -56,7 +50,6 @@ class Config(ExperimentConfig):
             max_episode_steps=(max_episode_steps := 1000),
             es=ESConfig(
                 npop=100,
-                lr=0.04,
                 std=0.025,
                 seed=123323,
                 device="cuda" if torch.cuda.is_available() else "cpu",
@@ -69,7 +62,9 @@ class Config(ExperimentConfig):
             std_schedule="constant",
             lr_schedule="constant",
             optim="SGD",
-            optim_kwargs={"weight_decay": 0.0025},
+            optim_kwargs={"lr": 0.04, "weight_decay": 0.0025},
+            std_schedule_kwargs={},
+            lr_schedule_kwargs={},
             policy=SimpleMLPConfig(
                 obs_dim=17,
                 act_dim=6,
@@ -81,6 +76,7 @@ class Config(ExperimentConfig):
                 vectorization_mode=VectorizeMode.ASYNC,
                 render_mode=None,
             ),
+            env_seed=42,
         )
 
     def __post_init__(self) -> None:
@@ -95,7 +91,7 @@ def evaluate_policy_batch(
     policy_params_batch: torch.Tensor,
     max_episode_steps: int,
     device: torch.device | str,
-    env_seed: int,
+    env_seed: int | None,
     env_kwargs: dict[str, Any] = None,
 ) -> torch.Tensor:
     npop = policy_params_batch.size(0)
@@ -142,6 +138,7 @@ class Worker(evochi.Worker[WorkerState]):
         self.env = gym.make_vec(**self.cfg.env_kwargs)
         self.policy = SimpleMLP(self.cfg.policy)
         self.optim: ES | None = None
+        self.lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None
         self.perturbed_params: Float[Tensor, "npop nparams"] | None = None
 
         if self.cfg.wandb.enabled:
@@ -159,7 +156,7 @@ class Worker(evochi.Worker[WorkerState]):
     def initialize(self) -> WorkerState:
         """First worker initializes the state."""
         initial_params = nn.utils.parameters_to_vector(self.policy.parameters())
-        self.optim = create_es(self.cfg, params=initial_params, rng_state=None)
+        self.optim, self.lr_scheduler = create_es(self.cfg, params=initial_params, rng_state=None)
         self.perturbed_params = self.optim.get_perturbed_params()
         return WorkerState(
             params=initial_params.cpu(),
@@ -185,8 +182,12 @@ class Worker(evochi.Worker[WorkerState]):
     def optimize(self, epoch: int, rewards: list[float]) -> WorkerState:
         """Updates the policy parameters based on the rewards."""
         self.optim.step(torch.tensor(rewards, device=self.cfg.es.device))
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
         self.perturbed_params = self.optim.get_perturbed_params()  # for the next step
-        print(f"epoch {epoch}/{self.cfg.epochs}: mean reward {np.mean(rewards)} | max reward {np.max(rewards)}")
+        print(
+            f"epoch {epoch}/{self.cfg.epochs}: mean reward {np.mean(rewards)} | max reward {np.max(rewards)} | lr: {self.optim.get_current_lr():.6f} | std: {self.optim.get_current_std():.6f}"
+        )
         if self.cfg.wandb.enabled:
             rewards = torch.tensor(rewards)
             wandb.log(
@@ -196,6 +197,8 @@ class Worker(evochi.Worker[WorkerState]):
                     "max_reward": rewards.max().item(),
                     "min_reward": rewards.min().item(),
                     "std_reward": rewards.std().item(),
+                    "lr": self.optim.get_current_lr(),
+                    "std": self.optim.get_current_std(),
                 }
             )
         if self.cfg.ckpt_every is not None and epoch % self.cfg.ckpt_every == 0:
@@ -216,7 +219,7 @@ class Worker(evochi.Worker[WorkerState]):
     def on_state_change(self, state: WorkerState) -> None:
         """Called when a newly joined worker receives the shared state to initialize from."""
         if self.optim is None:
-            self.optim = create_es(self.cfg, params=state.params, rng_state=state.rng_state)
+            self.optim, self.lr_scheduler = create_es(self.cfg, params=state.params, rng_state=state.rng_state)
         self.optim.generator.set_state(self.state.rng_state)
         self.perturbed_params = self.optim.get_perturbed_params()
 
@@ -231,23 +234,19 @@ class Worker(evochi.Worker[WorkerState]):
 
 async def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, help="Number of training epochs")
-    parser.add_argument("--max_episode_steps", type=int, help="Max steps per episode")
     parser.add_argument("--hid", type=int, help="Hidden layer size")
     parser.add_argument("--ckpt", type=int, help="Save every N epochs. N<=0 disables saving")
     parser.add_argument("--render-mode", type=str, help="Oneof: human, rgb_array, None")
     parser.add_argument("--server", type=str, help="IP address of the server", default="localhost:8080")
     parser.add_argument("--bs", type=int, help="Batch size", default=psutil.cpu_count(logical=True))
-    ESArgumentHandler.add_args(parser)
-    WandbArgumentHandler.add_args(parser)
+    TrainArgHandler.add_args(parser)
+    WandbArgHandler.add_args(parser)
     args = vars(parser.parse_args())
 
     cfg = Config.default()
 
-    ESArgumentHandler.update_config(args, cfg)
-    WandbArgumentHandler.update_config(args, cfg)
-    cfg.epochs = args["epochs"] or cfg.epochs
-    cfg.max_episode_steps = args["max_episode_steps"] or cfg.max_episode_steps
+    TrainArgHandler.update_config(args, cfg)
+    WandbArgHandler.update_config(args, cfg)
     cfg.policy.hidden_dim = args["hid"] or cfg.policy.hidden_dim
     cfg.env_kwargs["render_mode"] = args["render_mode"] or cfg.env_kwargs.get("render_mode")
     cfg.ckpt_every = args["ckpt"]

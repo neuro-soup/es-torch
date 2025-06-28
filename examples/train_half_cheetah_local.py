@@ -20,10 +20,10 @@ from torch import Tensor
 from es_torch.optim import Config as ESConfig
 from examples.policies import SimpleMLP, SimpleMLPConfig
 from examples.utils import (
-    ESArgumentHandler,
+    TrainArgHandler,
     ExperimentConfig,
     Paths,
-    WandbArgumentHandler,
+    WandbArgHandler,
     WandbConfig,
     create_es,
     reshape_params,
@@ -34,9 +34,6 @@ from examples.utils import (
 @dataclass
 class Config(ExperimentConfig):
     policy: SimpleMLPConfig
-    epochs: int
-    max_episode_steps: int
-    env_seed: int | None
     ckpt_every: int | None = None
     ckpt_path: str | Path | None = None
 
@@ -46,7 +43,6 @@ class Config(ExperimentConfig):
         return cls(
             es=ESConfig(
                 npop=30,  # original uses 1440, but that's not feasible on a single reasonable machine
-                lr=0.04,
                 std=0.025,
                 seed=123323,
                 device="cuda" if torch.cuda.is_available() else "cpu",
@@ -59,7 +55,9 @@ class Config(ExperimentConfig):
             std_schedule="constant",
             lr_schedule="constant",
             optim="SGD",
-            optim_kwargs={"weight_decay": 0.0025},
+            optim_kwargs={"lr": 0.04, "weight_decay": 0.0025},
+            std_schedule_kwargs={},
+            lr_schedule_kwargs={},
             policy=SimpleMLPConfig(
                 obs_dim=17,
                 act_dim=6,
@@ -67,7 +65,7 @@ class Config(ExperimentConfig):
             ),
             epochs=1000,
             max_episode_steps=1000,
-            env_seed=None,
+            env_seed=42,
         )
 
     def __post_init__(self) -> None:
@@ -121,17 +119,22 @@ def train(config: Config) -> torch.Tensor:
     env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.npop, vectorization_mode=VectorizeMode.ASYNC)
     policy = SimpleMLP(config.policy)
     policy.init_weights()
-    optim = create_es(
-        config,
-        params=torch.nn.utils.parameters_to_vector(policy.parameters()),
-    )
+    optim, lr_scheduler = create_es(config, params=torch.nn.utils.parameters_to_vector(policy.parameters()))
 
     for epoch in range(config.epochs):
         rewards = evaluate_policy_batch(env, optim.get_perturbed_params(), config)
         optim.step(rewards)
-        print(f"Epoch {epoch + 1}/{config.epochs}")
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+        print(f"Epoch {epoch + 1}/{config.epochs} | lr: {optim.get_current_lr():.6f} | std: {optim.get_current_std():.6f}")
         if config.wandb.enabled:
-            wandb.log({"epoch": epoch + 1})
+            wandb.log(
+                {
+                    "epoch": epoch + 1,
+                    "lr": optim.get_current_lr(),
+                    "std": optim.get_current_std(),
+                }
+            )
         if config.ckpt_every is not None and epoch % config.ckpt_every == 0:
             model = SimpleMLP(config.policy)
             torch.nn.utils.vector_to_parameters(optim.params, model.parameters())
@@ -147,28 +150,18 @@ def train(config: Config) -> torch.Tensor:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, help="Number of training epochs")
-    parser.add_argument("--max_episode_steps", type=int, help="Max steps per episode")
-    parser.add_argument("--hid", type=int, help="Hidden layer size")
     parser.add_argument("--ckpt", type=int, help="Save every N epochs. N<=0 disables saving")
-    ESArgumentHandler.add_args(parser)
-    WandbArgumentHandler.add_args(parser)
+    parser.add_argument("--hid", type=int, help="Hidden layer size")
+    TrainArgHandler.add_args(parser)
+    WandbArgHandler.add_args(parser)
     args = vars(parser.parse_args())
     cfg = Config.default()
-    ESArgumentHandler.update_config(args, cfg)
-    WandbArgumentHandler.update_config(args, cfg)
-    cfg.epochs = args["epochs"] or cfg.epochs
-    cfg.max_episode_steps = args["max_episode_steps"] or cfg.max_episode_steps
+    TrainArgHandler.update_config(args, cfg)
+    WandbArgHandler.update_config(args, cfg)
     cfg.policy.hidden_dim = args["hid"] or cfg.policy.hidden_dim
 
     if cfg.wandb.enabled:
-        run = wandb.init(
-            project=cfg.wandb.project,
-            name=cfg.wandb.name,
-            tags=cfg.wandb.tags,
-            entity=cfg.wandb.entity,
-            config=vars(cfg),
-        )
+        run = wandb.init(project=cfg.wandb.project, name=cfg.wandb.name, tags=cfg.wandb.tags, entity=cfg.wandb.entity, config=vars(cfg))
 
     filename = "cheetah.pt" if not cfg.wandb.enabled else f"cheetah_{run.name}.pt"
     cfg.ckpt_path = Paths.CKPTS / filename
@@ -181,11 +174,7 @@ def main() -> None:
     model = SimpleMLP(cfg.policy)
     torch.nn.utils.vector_to_parameters(final_params, model.parameters())
     fp = cfg.ckpt_path.with_stem(cfg.ckpt_path.stem + "_final")
-    save_policy(
-        model=model,
-        model_config=cfg.policy,
-        fp=fp,
-    )
+    save_policy(model=model, model_config=cfg.policy, fp=fp)
     print(f"Saved final checkpoint to {fp}")
 
 

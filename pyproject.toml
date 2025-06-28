@@ -3,7 +3,7 @@ name = "es-torch"
 version = "0.1.0"
 description = "Evolution Strategies in PyTorch"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 dependencies = [
     "torch>=1.9.0",
     "jaxtyping>=0.2.0",

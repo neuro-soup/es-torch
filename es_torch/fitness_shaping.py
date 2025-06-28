@@ -21,7 +21,7 @@ def centered_rank(rewards: Float[Tensor, "npop"]) -> Float[Tensor, "npop"]:
 
     if len(rewards) <= 1:
         return torch.zeros_like(rewards)
-    
+
     return (ranks - (len(rewards) - 1) / 2) / (len(rewards) - 1)  # center and normalize ranks to [-0.5, 0.5]
 
 
@@ -34,4 +34,3 @@ TRANSFORMS: dict[str, RewardTransform] = {
     "centered_rank": centered_rank,
     "normalized": normalized,
 }
-

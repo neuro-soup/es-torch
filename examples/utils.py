@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +11,9 @@ import torch
 from jaxtyping import Float
 from torch import Tensor, nn
 
+from es_torch.fitness_shaping import TRANSFORMS
 from es_torch.optim import Config as ESConfig, ES
 from es_torch.sampling import SAMPLERS
-from es_torch.fitness_shaping import TRANSFORMS
 from es_torch.schedules import SCHEDULES
 
 
@@ -35,9 +36,33 @@ class ExperimentConfig:
     lr_schedule: str
     optim: str
 
-    std_schedule_kwargs: dict = field(default_factory=dict)
-    lr_schedule_kwargs: dict = field(default_factory=dict)
-    optim_kwargs: dict = field(default_factory=dict)
+    epochs: int
+    max_episode_steps: int
+    env_seed: int | None
+
+    std_schedule_kwargs: dict
+    lr_schedule_kwargs: dict
+    optim_kwargs: dict
+
+
+def create_es(
+    cfg: ExperimentConfig,
+    params: Float[Tensor, "params"],
+    rng_state: torch.ByteTensor | None = None,
+) -> tuple[ES, torch.optim.lr_scheduler.LRScheduler | None]:
+    """Factory function to create ES optimizer from experiment config."""
+    sampler = SAMPLERS[cfg.sampling_strategy]
+    transform = TRANSFORMS[cfg.reward_transform]
+    std_schedule = SCHEDULES[cfg.std_schedule](cfg.es.std, **cfg.std_schedule_kwargs)
+
+    optim_class = getattr(torch.optim, cfg.optim)
+    params = params.detach().to(cfg.es.device).requires_grad_(True)
+    optim = optim_class([params], **cfg.optim_kwargs)
+
+    initial_lr = cfg.optim_kwargs["lr"]  # LambdaLR expects a multiplier, so we divide by initial lr
+    lr_schedule_fn = SCHEDULES[cfg.lr_schedule](initial_lr, **cfg.lr_schedule_kwargs)
+    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=lambda step: lr_schedule_fn(step) / initial_lr)
+    return ES(cfg.es, sampler, transform, optim, std_schedule, rng_state), lr_scheduler
 
 
 @dataclass
@@ -51,41 +76,75 @@ class WandbConfig:
 
 
 @dataclass
-class ESArgumentHandler:
-    """Handles argument parsing and configuration for the ES optimizer"""
+class TrainArgHandler:
+    """Handles argument parsing and configuration for the training configuration"""
 
     population_size: str = "npop"
-    std_dev: str = "std"
     learning_rate: str = "lr"
-    weight_decay: str = "wd"
+    std_dev: str = "std"
+    random_seed: str = "seed"
+
     noise_strat: str = "noise"
     reward_strat: str = "reward"
-    random_seed: str = "seed"
+    std_schedule: str = "std_schedule"
+    lr_schedule: str = "lr_schedule"
+    optimizer: str = "optim"
+
+    epochs: str = "epochs"
+    max_episode_steps: str = "max_episode_steps"
+    env_seed: str = "env_seed"
+
+    std_schedule_kwargs: str = "std_schedule_kwargs"
+    lr_schedule_kwargs: str = "lr_schedule_kwargs"
+    optimizer_kwargs: str = "optim_kwargs"
 
     @classmethod
     def add_args(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(f"--{cls.population_size}", type=int, help="Population size")
-        parser.add_argument(f"--{cls.std_dev}", type=float, help="Standard deviation of noise")
         parser.add_argument(f"--{cls.learning_rate}", type=float, help="Learning rate")
-        parser.add_argument(f"--{cls.weight_decay}", type=float, help="Weight decay")
-        parser.add_argument(f"--{cls.noise_strat}", type=str, help="Noise sampling strategy", choices=SAMPLERS.keys())
-        parser.add_argument(f"--{cls.reward_strat}", type=str, help="Reward normalization strategy", choices=TRANSFORMS.keys())
+        parser.add_argument(f"--{cls.std_dev}", type=float, help="Standard deviation of noise")
         parser.add_argument(f"--{cls.random_seed}", type=int, help="Seed for noise sampling")
 
+        parser.add_argument(f"--{cls.noise_strat}", type=str, help="Noise sampling strategy", choices=SAMPLERS.keys())
+        parser.add_argument(f"--{cls.reward_strat}", type=str, help="Reward normalization strategy", choices=TRANSFORMS.keys())
+        parser.add_argument(f"--{cls.std_schedule}", type=str, choices=SCHEDULES.keys(), help="Std deviation schedule")
+        parser.add_argument(f"--{cls.lr_schedule}", type=str, choices=SCHEDULES.keys(), help="Learning rate schedule")
+        parser.add_argument(f"--{cls.optimizer}", type=str, help="Optimizer to use (SGD, Adam, AdamW, etc.)")
+
+        parser.add_argument(f"--{cls.epochs}", type=int, help="Number of training epochs")
+        parser.add_argument(f"--{cls.max_episode_steps}", type=int, help="Max steps per episode")
+        parser.add_argument(f"--{cls.env_seed}", type=int, help="Environment seed")
+
+        parser.add_argument(f"--{cls.std_schedule_kwargs}", type=str, help="JSON string of std schedule kwargs")
+        parser.add_argument(f"--{cls.lr_schedule_kwargs}", type=str, help="JSON string of lr schedule kwargs")
+        parser.add_argument(f"--{cls.optimizer_kwargs}", type=str, help="JSON string of optimizer kwargs, e.g. '{\"betas\": [0.9, 0.999]}'")
+
     @classmethod
-    def update_config(cls, args: dict[str, Any], config) -> None:
+    def update_config(cls, args: dict[str, Any], config: ExperimentConfig) -> None:
         config.es.npop = args[cls.population_size] or config.es.npop
         config.es.std = args[cls.std_dev] or config.es.std
-        config.es.lr = args[cls.learning_rate] or config.es.lr
-        config.es.weight_decay = args[cls.weight_decay] or config.es.weight_decay
-        config.es.sampling_strategy = args[cls.noise_strat] or config.es.sampling_strategy
-        config.es.reward_transform = args[cls.reward_strat] or config.es.reward_transform
         config.es.seed = args[cls.random_seed] or config.es.seed
+        if args[cls.learning_rate]:
+            config.optim_kwargs["lr"] = args[cls.learning_rate]
+
+        config.sampling_strategy = args[cls.noise_strat] or config.sampling_strategy
+        config.reward_transform = args[cls.reward_strat] or config.reward_transform
+        config.std_schedule = args[cls.std_schedule] or config.std_schedule
+        config.lr_schedule = args[cls.lr_schedule] or config.lr_schedule
+        config.optim = args[cls.optimizer] or config.optim
+
+        config.epochs = args[cls.epochs] or config.epochs
+        config.max_episode_steps = args[cls.max_episode_steps] or config.max_episode_steps
+        config.env_seed = args[cls.env_seed] if args[cls.env_seed] is not None else config.env_seed
+
+        config.std_schedule_kwargs = json.loads(args[cls.std_schedule_kwargs]) if args[cls.std_schedule_kwargs] else config.std_schedule_kwargs
+        config.lr_schedule_kwargs = json.loads(args[cls.lr_schedule_kwargs]) if args[cls.lr_schedule_kwargs] else config.lr_schedule_kwargs
+        config.optim_kwargs = json.loads(args[cls.optimizer_kwargs]) if args[cls.optimizer_kwargs] else config.optim_kwargs
 
 
 @dataclass
-class WandbArgumentHandler:
-    """Handles argument parsing and configuration for wandb logging"""
+class WandbArgHandler:
+    """Handles argument parsing and configuration for wandb"""
 
     id: str = "id"
     enable: str = "wandb"
@@ -172,14 +231,3 @@ def flatten_dict(d: dict) -> dict:
 
 def short_uuid(n: int = 8) -> str:
     return str(uuid.uuid4())[:n]
-
-
-def create_es(exp_config: ExperimentConfig, params: Tensor, rng_state: torch.ByteTensor | None = None) -> ES:
-    """Factory function to create ES optimizer from experiment config."""
-    sampler = SAMPLERS[exp_config.sampling_strategy]
-    transform = TRANSFORMS[exp_config.reward_transform]
-    std_schedule = SCHEDULES[exp_config.std_schedule](exp_config.es.std, **exp_config.std_schedule_kwargs)
-    lr_schedule = SCHEDULES[exp_config.lr_schedule](exp_config.es.lr, **exp_config.lr_schedule_kwargs)
-    optim_class = getattr(torch.optim, exp_config.optim)
-    optim = optim_class([params], lr=1.0, **exp_config.optim_kwargs)
-    return ES(exp_config.es, params, sampler, transform, optim, std_schedule, lr_schedule, rng_state)

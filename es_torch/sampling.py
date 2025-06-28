@@ -19,4 +19,3 @@ SAMPLERS: dict[str, Sampler] = {
     "antithetic": antithetic,
     "normal": normal,
 }
-
