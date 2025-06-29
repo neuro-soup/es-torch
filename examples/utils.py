@@ -14,7 +14,7 @@ from torch import Tensor, nn
 from es_torch.fitness_shaping import TRANSFORMS
 from es_torch.optim import Config as ESConfig, ES
 from es_torch.sampling import SAMPLERS
-from es_torch.schedules import SCHEDULES
+from examples.schedules import SCHEDULES, Scheduler
 
 
 class Paths:
@@ -49,7 +49,7 @@ def create_es(
     cfg: ExperimentConfig,
     params: Float[Tensor, "params"],
     rng_state: torch.ByteTensor | None = None,
-) -> tuple[ES, torch.optim.lr_scheduler.LRScheduler | None]:
+) -> tuple[ES, torch.optim.lr_scheduler.LRScheduler, Scheduler]:
     """Factory function to create ES optimizer from experiment config."""
     sampler = SAMPLERS[cfg.sampling_strategy]
     transform = TRANSFORMS[cfg.reward_transform]
@@ -62,7 +62,7 @@ def create_es(
     initial_lr = cfg.optim_kwargs["lr"]  # LambdaLR expects a multiplier, so we divide by initial lr
     lr_schedule_fn = SCHEDULES[cfg.lr_schedule](initial_lr, **cfg.lr_schedule_kwargs)
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=lambda step: lr_schedule_fn(step) / initial_lr)
-    return ES(cfg.es, sampler, transform, optim, std_schedule, rng_state), lr_scheduler
+    return ES(cfg.es, sampler, transform, optim, rng_state), lr_scheduler, std_schedule
 
 
 @dataclass

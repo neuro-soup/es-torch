@@ -121,13 +121,13 @@ def train(config: Config) -> torch.Tensor:
     env = gym.make_vec("HalfCheetah-v5", num_envs=config.es.npop, vectorization_mode=VectorizeMode.ASYNC)
     policy = SimpleMLP(config.policy)
     policy.init_weights()
-    optim, lr_scheduler = create_es(config, params=torch.nn.utils.parameters_to_vector(policy.parameters()))
+    optim, lr_scheduler, std_schedule = create_es(config, params=torch.nn.utils.parameters_to_vector(policy.parameters()))
 
     for epoch in range(config.epochs):
         rewards = evaluate_policy_batch(env, optim.get_perturbed_params(), config)
         optim.step(rewards)
-        if lr_scheduler is not None:
-            lr_scheduler.step()
+        lr_scheduler.step()
+        optim.std = std_schedule(epoch)
         print(f"Epoch {epoch + 1}/{config.epochs} | lr: {optim.lr:.6f} | std: {optim.std:.6f}")
         if config.wandb.enabled:
             wandb.log(
