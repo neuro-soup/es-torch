@@ -53,7 +53,7 @@ python examples/train_half_cheetah_minimal.py
 
 The distributed example requires launching an [evochi](https://github.com/neuro-soup/evochi/tree/master) server:
 ```bash
-EVOCHI_JWT_SECRET="secret" EVOCHI_POPULATION_SIZE=1440 go run github.com/neuro-soup/evochi/cmd/evochi@latest
+EVOCHI_JWT_SECRET="secret" EVOCHI_POPULATION_SIZE=1440 go run github.com/neuro-soup/evochi/server/cmd/server@latest
 ```
 Note that the population size configured on the server needs to match the population size in the training script.
 
