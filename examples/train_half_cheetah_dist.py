@@ -127,6 +127,7 @@ def evaluate_policy_batch(
 class WorkerState:
     params: torch.Tensor
     rng_state: torch.ByteTensor
+    optim_state: dict[str, Any]  # PyTorch optimizer state dict
 
 
 class Worker(evochi.Worker[WorkerState]):
@@ -139,6 +140,7 @@ class Worker(evochi.Worker[WorkerState]):
         self.policy = SimpleMLP(self.cfg.policy)
         self.optim: ES | None = None
         self.lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None
+        self.std_schedule = None
         self.perturbed_params: Float[Tensor, "npop nparams"] | None = None
 
         if self.cfg.wandb.enabled:
@@ -157,12 +159,14 @@ class Worker(evochi.Worker[WorkerState]):
 
     def initialize(self) -> WorkerState:
         """First worker initializes the state."""
+        self._validate_cfg()
         initial_params = nn.utils.parameters_to_vector(self.policy.parameters())
-        self.optim, self.lr_scheduler = create_es(self.cfg, params=initial_params, rng_state=None)
+        self.optim, self.lr_scheduler, self.std_schedule = create_es(self.cfg, params=initial_params, rng_state=None)
         self.perturbed_params = self.optim.get_perturbed_params()
         return WorkerState(
             params=initial_params.cpu(),
             rng_state=self.optim.generator.get_state(),
+            optim_state=self.optim.optim.state_dict(),
         )
 
     def evaluate(self, epoch: int, slices: list[slice]) -> list[evochi.Eval]:
@@ -184,8 +188,8 @@ class Worker(evochi.Worker[WorkerState]):
     def optimize(self, epoch: int, rewards: list[float]) -> WorkerState:
         """Updates the policy parameters based on the rewards."""
         self.optim.step(torch.tensor(rewards, device=self.cfg.es.device))
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        self.lr_scheduler.step()
+        self.optim.std = self.std_schedule(epoch - 1)  # epoch is 1-indexed, std_schedule expects 0-indexed
         self.perturbed_params = self.optim.get_perturbed_params()  # for the next step
         print(
             f"epoch {epoch}/{self.cfg.epochs}: mean reward {np.mean(rewards)} | max reward {np.max(rewards)} | lr: {self.optim.lr:.6f} | std: {self.optim.std:.6f}"
@@ -216,13 +220,14 @@ class Worker(evochi.Worker[WorkerState]):
         return WorkerState(
             params=self.optim.params.cpu(),
             rng_state=self.optim.generator.get_state(),
+            optim_state=self.optim.optim.state_dict(),
         )
 
     def on_state_change(self, state: WorkerState) -> None:
         """Called when a newly joined worker receives the shared state to initialize from."""
-        if self.optim is None:
-            self.optim, self.lr_scheduler = create_es(self.cfg, params=state.params, rng_state=state.rng_state)
-        self.optim.generator.set_state(self.state.rng_state)
+        self._validate_cfg()
+        self.optim, self.lr_scheduler, self.std_schedule = create_es(self.cfg, params=state.params, rng_state=state.rng_state)
+        self.optim.optim.load_state_dict(state.optim_state)
         self.perturbed_params = self.optim.get_perturbed_params()
 
     def on_stop(self, cancel: bool) -> None:
@@ -232,6 +237,13 @@ class Worker(evochi.Worker[WorkerState]):
         fp = self.cfg.ckpt_path.with_stem(f"{self.cfg.ckpt_path.stem}_final")
         save_policy(self.policy, model_config=self.cfg.policy, fp=fp)
         print(f"Saved final parameters to {fp}")
+
+    def _validate_cfg(self) -> None:
+        """Validate config against the server settings. Can be called after hello."""
+        if self.cfg.es.npop != self.population_size:
+            raise ValueError(
+                f"Population size mismatch: configured npop={self.cfg.es.npop} but evochi server expects {self.population_size}. Update your config or server settings to match."
+            )
 
 
 async def main() -> None:
