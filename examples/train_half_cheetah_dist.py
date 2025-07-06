@@ -225,6 +225,7 @@ class Worker(evochi.Worker[WorkerState]):
 
     def on_state_change(self, state: WorkerState) -> None:
         """Called when a newly joined worker receives the shared state to initialize from."""
+        # TODO this docstring is wrong (and the impl inefficient)! This is called every time the state changes (after hello, init, optimize)!
         self._validate_cfg()
         self.optim, self.lr_scheduler, self.std_schedule = create_es(self.cfg, params=state.params, rng_state=state.rng_state)
         self.optim.optim.load_state_dict(state.optim_state)
