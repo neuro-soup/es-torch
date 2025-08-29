@@ -181,7 +181,7 @@ class Worker(evochi.Worker[WorkerState]):
             env_kwargs=self.cfg.env_kwargs,
         )
         print(
-            f"(worker): Epoch {epoch} | Mean reward: {rewards.mean()} | Max reward: {rewards.max()} | Slices: {', '.join([f"{s.start}:{s.stop} ({s.stop - s.start})" for s in slices])}"
+            f"(worker): Epoch {epoch} | Mean reward: {rewards.mean()} | Max reward: {rewards.max()} | Slices: {', '.join([f'{s.start}:{s.stop} ({s.stop - s.start})' for s in slices])}"
         )
         return evochi.Eval.from_flat(slices, rewards.tolist())
 
@@ -224,8 +224,13 @@ class Worker(evochi.Worker[WorkerState]):
         )
 
     def on_state_change(self, state: WorkerState) -> None:
-        """Called when a newly joined worker receives the shared state to initialize from."""
-        # TODO this docstring is wrong (and the impl inefficient)! This is called every time the state changes (after hello, init, optimize)!
+        """Called on hello/init/optimize events.
+
+        Only used to bootstrap workers that join an existing run (i.e., when the server sends a state during the initial hello).
+        For already initialized workers, initialize()/optimize() keep local state in sync, so this is a no-op.
+        """
+        if self.optim is not None:
+            return
         self._validate_cfg()
         self.optim, self.lr_scheduler, self.std_schedule = create_es(self.cfg, params=state.params, rng_state=state.rng_state)
         self.optim.optim.load_state_dict(state.optim_state)
